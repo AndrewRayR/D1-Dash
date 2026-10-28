@@ -1,18 +1,61 @@
-# SenseCAP Indicator project template
+# D1-Dash
 
-This is a standalone project, 'indicator_basis', independent from the [SenseCAP Indicator ESP32 example](https://github.com/Seeed-Solution/sensecap_indicator_esp32).
+D1-Dash is a touchscreen-first Tech Terminal for the Seeed Studio SenseCAP Indicator D1, built with ESP-IDF and LVGL.
 
-## Usage
+The project starts from AndrewRayR's SenseCAP Indicator ESP-IDF template fork and preserves its board support package, peripheral drivers, LVGL port, and existing application code. The goal is an expandable personal status terminal rather than a smart-home controller.
 
-> On GitHub, utilize it as a template.
+## Planned home modules
 
-The two resources mentioned are commonly used to land the SenseCAP Indicator ESP32 project.
-- [The ESP-IDF examples↗](https://github.com/espressif/esp-idf/tree/master/examples) from Espressif. These examples cover a wide range of applications and can be very helpful when developing projects based on the ESP32 microcontroller.
-- [The SenseCAP Indicator ESP32 example↗](https://github.com/Seeed-Solution/sensecap_indicator_esp32) from Seeed Solution. This repository contains the SDK for the SenseCAP Indicator device. It provides several examples demonstrating how to utilize the ESP32 functions for various applications, such as displaying sensor data, implementing time and configuration functions, and facilitating communication using LoRa.
+- **Home** — concise dashboard and module navigation
+- **Web Reader** — lightweight text-first HTTP/HTTPS browsing, not a full desktop browser
+- **Network Monitor** — Wi-Fi state and network diagnostics
+- **Raspberry Pi Monitor** — status from a small JSON endpoint hosted on a Pi
+- **GitHub Monitor** — repository and workflow summaries using GitHub APIs
+- **F1** — race schedule and motorsport information from an API
+- **Information** — weather, news, NASA and other configurable feeds
+- **Settings** — Wi-Fi, endpoints, display and module configuration
 
+Developer tools are intentionally not a home-screen module; those tools already live on the project's GitHub site.
 
-## changelog
+## Hardware and software
 
-### v1.0.0 ###
-2023/07/26
-* Initial version.
+- Seeed Studio SenseCAP Indicator D1 / ESP32-S3
+- Onboard display and touch hardware; no extra hardware required for the initial milestone
+- Intended toolchain: ESP-IDF 5.4.4
+- Target: esp32s3
+- LVGL UI
+
+## Repository layout
+
+- main/ — app entry point, UI, models, views, controllers and Tech Terminal modules
+- components/bsp/ — board support and display integration
+- components/i2c_devices/ — onboard I²C peripheral drivers
+- docs/ — architecture, build notes, roadmap and status
+- sdkconfig.defaults — baseline project configuration
+- dependencies.lock — resolved ESP-IDF component dependency lock
+
+## Current status
+
+The source tree has been copied into this repository for ongoing version-controlled work. See docs/DEVELOPMENT_STATUS.md before attempting a device flash. The original development PC is unavailable, so this machine must be provisioned with the matching ESP-IDF toolchain before build validation can be repeated.
+
+## Build overview
+
+1. Install ESP-IDF 5.4.4 for Windows and the ESP32-S3 toolchain.
+2. Open an ESP-IDF PowerShell terminal.
+3. From the repository root, run: idf.py set-target esp32s3
+4. Run: idf.py build
+5. Connect the Indicator D1 over USB and identify its serial port before using idf.py -p COMx flash monitor.
+
+Full details and cautions are in docs/BUILDING.md.
+
+## Project documents
+
+- docs/ARCHITECTURE.md
+- docs/BUILDING.md
+- docs/ROADMAP.md
+- docs/DEVELOPMENT_STATUS.md
+- CONTRIBUTING.md
+
+## Source attribution
+
+The baseline derives from Seeed Studio's indicator-esp-idf-template and the owner-maintained fork AndrewRayR/indicator-esp-idf-template. Preserve upstream license headers and component licenses when modifying or redistributing code.
