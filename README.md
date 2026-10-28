@@ -36,7 +36,7 @@ Developer tools are intentionally not a home-screen module; those tools already 
 
 ## Current status
 
-The source tree has been copied into this repository for ongoing version-controlled work. See docs/DEVELOPMENT_STATUS.md before attempting a device flash. The original development PC is unavailable, so this machine must be provisioned with the matching ESP-IDF toolchain before build validation can be repeated.
+The source tree is synced to this repository and has completed a clean ESP-IDF 5.4.4 / ESP32-S3 build on DESKTOP-415LS7I. Firmware has not yet been flashed or tested on the physical Indicator D1. See docs/DEVELOPMENT_STATUS.md before attempting a device flash.
 
 ## Build overview
 

@@ -17,21 +17,25 @@ On the original machine, ESP-IDF 5.4.4 and ESP32-S3 were confirmed as the active
 - Framebuffer API expected void **, while the old code supplied uint8_t **.
 - LVGL direct-mode copy callback type differed.
 
-The current repository checkout already includes a BSP wrapper named tca9535_read_input_pins_8, void * framebuffer pointers, a const-qualified VSYNC callback, and a void (*)(void) direct-mode copy callback. These source changes are present but have not yet been recompiled on this replacement computer.
+The current repository checkout includes a BSP wrapper named tca9535_read_input_pins_8, void * framebuffer pointers, a const-qualified VSYNC callback, and a void (*)(void) direct-mode copy callback. These compatibility changes were recompiled successfully on the replacement computer as part of the clean ESP-IDF 5.4.4 build.
 
 ## Current replacement-machine findings
 
 - Remote Desktop Commander connection to DESKTOP-415LS7I: online.
-- Git for Windows: installed.
 - Project checkout: C:\Projects\AndrewRayR\D1-Dash.
-- ESP-IDF installation at the old path C:\esp\v5.4.4\esp-idf: not found.
-- idf.py: not found in PATH.
-- Hardware/USB connection: not yet verified.
+- ESP-IDF 5.4.4 installed at C:\Espressif\frameworks\esp-idf-v5.4.4.
+- ESP32-S3 toolchain and Python environment installed under C:\Users\andre\.espressif.
+- Clean build command: idf.py set-target esp32s3 followed by idf.py build.
+- Build result: PASS, exit code 0; generated build/indicator_basis.bin.
+- Firmware binary size: 0x217730 bytes; app partition is 0x400000 bytes with 48% free.
+- The build reported two renamed Wi-Fi config options; sdkconfig.defaults has now been updated to the current ESP-IDF names.
+- USB serial scan showed COM22 as “USB Serial Device” with VID 2E8A / PID 000A. This identifies a USB serial device but does not prove it is the Indicator D1 ESP32-S3 interface, so it must not be flashed based on this scan alone.
+- Firmware has not been flashed; display, touch, Wi-Fi and API behavior remain unverified on hardware.
 
 ## Next actions
 
-1. Confirm D1-Dash is pushed to GitHub and its default branch contains the recovered source and project docs.
-2. Install ESP-IDF 5.4.4 and its ESP32-S3 tools on this machine.
-3. Run idf.py fullclean, idf.py set-target esp32s3, and idf.py build.
-4. Resolve any new build errors based on the first complete compiler diagnostic.
-5. Flash only after a successful build and confirming the actual COM port.
+1. Rebuild after the sdkconfig.defaults cleanup and confirm there are no configuration-migration warnings.
+2. Identify the exact USB serial interface for the Indicator D1 before flashing.
+3. Flash only after the device identity and COM port are confirmed.
+4. Verify the touchscreen home screen and Wi-Fi behavior on hardware.
+5. Implement and test the remaining module work, starting with the F1 tile, which is currently a placeholder.

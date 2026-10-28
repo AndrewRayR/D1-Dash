@@ -4,9 +4,9 @@
 
 - [x] Put the current SenseCAP Indicator source tree under the D1-Dash repository.
 - [x] Document target, architecture, build steps and known environment limits.
-- [ ] Provision ESP-IDF 5.4.4 on the replacement computer.
-- [ ] Run a clean ESP32-S3 build and fix compiler errors from the first failure onward.
-- [ ] Flash the board and verify display, touch and Wi-Fi.
+- [x] Provision ESP-IDF 5.4.4 on the replacement computer.
+- [x] Run a clean ESP32-S3 build; the recovered BSP compatibility changes compile successfully.
+- [ ] Identify the connected USB serial device conclusively, then flash the Indicator D1 and verify display, touch and Wi-Fi.
 
 ## Phase 1 — Stable home and navigation
 
