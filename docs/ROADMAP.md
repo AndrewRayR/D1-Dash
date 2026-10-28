@@ -24,11 +24,13 @@
 - [ ] Network Monitor: Wi-Fi state, IP, RSSI and basic diagnostics.
 - [ ] Settings: saved endpoints, refresh intervals and user preferences.
 - [ ] Raspberry Pi Monitor: configurable JSON endpoint and clear offline state.
-- [ ] GitHub Monitor: configurable repository, recent workflow status and API rate-limit handling.
+- [x] GitHub Monitor: fetch latest workflow status and show clear HTTP 403/429 rate-limit/access messages.
+- [ ] GitHub Monitor: verify workflow status and rate-limit messaging on the physical device.
 - [x] F1: basic schedule screen, OpenF1 request task, loading/error states, and recent-race fallback.
 - [x] Validate the OpenF1 schedule request and display on the physical device.
 - [x] F1: request the latest completed race result and show the top three driver acronyms when OpenF1 data is available.
-- [ ] F1: verify results and cache behavior on the physical device.
+- [x] F1: verify latest race podium display on the physical device.
+- [ ] F1: verify offline-cache fallback and repeated navigation by touch.
 - [x] F1: add a bounded 900-byte RAM schedule cache with a 30-minute freshness limit for request-failure fallback.
 - [ ] Information: configurable weather/news/NASA feeds.
 

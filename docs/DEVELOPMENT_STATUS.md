@@ -30,16 +30,16 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - The first hardware boot exposed a main-task stack overflow during UI initialization. `CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192` was added to `sdkconfig.defaults`; after rebuilding and reflashing, startup proceeds past UI initialization without that stack-overflow error.
 - The first F1 tile tap exposed an LVGL crash when dynamically loading a separate screen; pre-creating that screen did not eliminate the issue. The F1 UI now uses a hidden overlay attached to the home screen instead of loading a new LVGL screen. The user subsequently tested the latest firmware on the physical Indicator D1: tapping F1 successfully contacted OpenF1, displayed upcoming races, and showed Refresh and Back Home controls. This confirms the F1 overlay, device-side network request, response parsing, and primary controls work on hardware.
 - F1 screen code is implemented in `main/tech_terminal_ui.c`: a hidden home-screen overlay requests race sessions from OpenF1 in a worker task, shows up to five upcoming races, has loading/error states, and falls back to recent races if the season has no future sessions. The user verified on the physical device that tapping F1 retrieves and displays upcoming races and exposes Refresh and Back Home controls.
-- F1 retains the last successful display text (schedule plus latest-result section when available) in a fixed 900-byte RAM buffer and can display it as `CACHED RACES (OFFLINE)` if a later request fails within 30 minutes. This cache is volatile and is lost on reboot.
-- F1 now requests the latest prior race session, its `session_result`, and driver acronyms from OpenF1, then appends the top-three finishers when that data is available. The schedule/results request remains in a worker task, not the LVGL UI task. The live results display still needs physical verification.
-- Clean ESP-IDF 5.4.4 build result after the results change: PASS, exit code 0; generated `build/indicator_basis.bin`.
-- Latest firmware binary size: `0x218c00` bytes; app partition is `0x400000` bytes with 48% free. The results-enabled firmware was flashed successfully to verified COM21; esptool verified image hashes and hard-reset the board. The F1 results/cache and navigation still need physical touch testing. COM22 remains untouched.
+- F1 retains the last successful display text (schedule plus latest-result section when available) in a fixed 900-byte RAM buffer and can display it as `CACHED RACES (OFFLINE)` if a later request fails within 30 minutes. This cache is volatile and is lost on reboot. The user confirmed the results-enabled screen displays the latest race podium successfully on hardware; explicit offline-cache behavior is not yet verified.
+- GitHub Monitor now requests the latest Actions workflow run after fetching repository metrics, and reports clear rate-limit/access messaging for HTTP 403 or 429. The updated firmware builds and has been flashed to verified COM21; the new workflow UI still needs physical verification.
+- Latest clean ESP-IDF 5.4.4 build after the GitHub workflow update: PASS, exit code 0; generated `build/indicator_basis.bin`.
+- Latest firmware binary size: `0x219000` bytes; app partition is `0x400000` bytes with 48% free. The GitHub workflow-enabled firmware was flashed successfully to verified COM21; esptool verified image hashes and hard-reset the board. The new GitHub workflow view and F1 offline-cache behavior still need physical verification. COM22 remains untouched.
 - The two renamed Wi-Fi config options were updated in `sdkconfig.defaults`; reconfigure/build completed without the previous migration warnings.
 
 ## Next actions
 
 1. Verify Back Home returns to the home screen and that reopening F1 / pressing Refresh works repeatedly.
 2. Confirm the other modules and settings/navigation by touch.
-3. Physically verify the latest-result section and F1 cache on the flashed firmware.
-4. Verify Back Home, repeated F1 entry, Refresh, and the other modules/navigation by touch.
+3. Physically verify GitHub latest workflow status and the F1 offline-cache fallback.
+4. Verify Back Home, repeated F1 entry, Refresh, and other module navigation by touch.
 5. Continue reliability work and the remaining modules.

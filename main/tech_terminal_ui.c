@@ -77,7 +77,7 @@ typedef struct {
 typedef struct {
     bool ok;
     char title[80];
-    char details[260];
+    char details[380];
     char html_url[160];
     char message[96];
 } github_result_t;
@@ -854,6 +854,66 @@ static bool github_component_valid(const char *text)
     return true;
 }
 
+static void github_append_latest_workflow(const char *owner, const char *repo,
+                                             char *details, size_t capacity)
+{
+    char url[320];
+    snprintf(url, sizeof(url),
+             "https://api.github.com/repos/%s/%s/actions/runs?per_page=1", owner, repo);
+    tech_http_response_t *response = calloc(1, sizeof(*response));
+    if (response == NULL) return;
+
+    esp_err_t err = tech_http_get(url, "application/vnd.github+json", response);
+    size_t used = strlen(details);
+    if (used >= capacity) {
+        free(response);
+        return;
+    }
+    if (err != ESP_OK) {
+        snprintf(details + used, capacity - used, "\n\nWorkflow status unavailable (network error)");
+        free(response);
+        return;
+    }
+    if (response->status_code == 403 || response->status_code == 429) {
+        snprintf(details + used, capacity - used,
+                 "\n\nWorkflow status unavailable (GitHub rate limit or permissions)");
+        free(response);
+        return;
+    }
+    if (response->status_code != 200) {
+        snprintf(details + used, capacity - used,
+                 "\n\nWorkflow API returned HTTP %d", response->status_code);
+        free(response);
+        return;
+    }
+
+    cJSON *root = cJSON_Parse(response->body);
+    free(response);
+    cJSON *runs = cJSON_GetObjectItemCaseSensitive(root, "workflow_runs");
+    cJSON *run = cJSON_IsArray(runs) ? cJSON_GetArrayItem(runs, 0) : NULL;
+    if (run == NULL) {
+        snprintf(details + used, capacity - used, "\n\nNo workflow runs found");
+        cJSON_Delete(root);
+        return;
+    }
+    cJSON *name = cJSON_GetObjectItemCaseSensitive(run, "name");
+    cJSON *status = cJSON_GetObjectItemCaseSensitive(run, "status");
+    cJSON *conclusion = cJSON_GetObjectItemCaseSensitive(run, "conclusion");
+    cJSON *updated = cJSON_GetObjectItemCaseSensitive(run, "updated_at");
+    const char *run_name = cJSON_IsString(name) && name->valuestring ?
+                           name->valuestring : "Workflow";
+    const char *run_status = cJSON_IsString(status) && status->valuestring ?
+                             status->valuestring : "unknown";
+    const char *run_conclusion = cJSON_IsString(conclusion) && conclusion->valuestring ?
+                                 conclusion->valuestring : "pending";
+    const char *date = cJSON_IsString(updated) && updated->valuestring ?
+                       updated->valuestring : "unknown";
+    snprintf(details + used, capacity - used,
+             "\n\nLatest workflow\n%.48s: %.16s / %.16s\n%.19s",
+             run_name, run_status, run_conclusion, date);
+    cJSON_Delete(root);
+}
+
 static void github_fetch_task(void *arg)
 {
     github_result_t result = {0};
@@ -883,7 +943,12 @@ static void github_fetch_task(void *arg)
         goto finished;
     }
     if (response->status_code != 200) {
-        snprintf(result.message, sizeof(result.message), "GitHub returned HTTP %d", response->status_code);
+        if (response->status_code == 403 || response->status_code == 429) {
+            strlcpy(result.message, "GitHub API rate limit or access restriction; retry later",
+                    sizeof(result.message));
+        } else {
+            snprintf(result.message, sizeof(result.message), "GitHub returned HTTP %d", response->status_code);
+        }
         free(response);
         goto finished;
     }
@@ -916,6 +981,9 @@ static void github_fetch_task(void *arg)
         strlcpy(result.message, "GitHub response is missing repository fields", sizeof(result.message));
     }
     cJSON_Delete(root);
+    if (result.ok) {
+        github_append_latest_workflow(owner, repo, result.details, sizeof(result.details));
+    }
 
 finished:
     github_request_active = false;
