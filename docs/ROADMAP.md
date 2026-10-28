@@ -27,7 +27,8 @@
 - [ ] GitHub Monitor: configurable repository, recent workflow status and API rate-limit handling.
 - [x] F1: basic schedule screen, OpenF1 request task, loading/error states, and recent-race fallback.
 - [x] Validate the OpenF1 schedule request and display on the physical device.
-- [ ] F1: add race results.
+- [x] F1: request the latest completed race result and show the top three driver acronyms when OpenF1 data is available.
+- [ ] F1: verify results and cache behavior on the physical device.
 - [x] F1: add a bounded 900-byte RAM schedule cache with a 30-minute freshness limit for request-failure fallback.
 - [ ] Information: configurable weather/news/NASA feeds.
 

@@ -1096,6 +1096,109 @@ static size_t f1_format_sessions(const char *body, char *details, size_t capacit
     return shown;
 }
 
+static void f1_append_latest_result(tech_http_response_t *response,
+                                     char *details, size_t capacity,
+                                     const char *today, int year)
+{
+    char url[192];
+    snprintf(url, sizeof(url),
+             "https://api.openf1.org/v1/sessions?year=%d&session_name=Race", year);
+    if (tech_http_get(url, "application/json", response) != ESP_OK ||
+        response->status_code != 200) return;
+
+    cJSON *sessions = cJSON_Parse(response->body);
+    if (!cJSON_IsArray(sessions)) {
+        cJSON_Delete(sessions);
+        return;
+    }
+
+    int latest_key = 0;
+    char latest_circuit[48] = {0};
+    char latest_date[16] = {0};
+    cJSON *session = NULL;
+    cJSON_ArrayForEach(session, sessions) {
+        cJSON *date = cJSON_GetObjectItemCaseSensitive(session, "date_start");
+        cJSON *key = cJSON_GetObjectItemCaseSensitive(session, "session_key");
+        cJSON *circuit = cJSON_GetObjectItemCaseSensitive(session, "circuit_short_name");
+        if (!cJSON_IsString(date) || !cJSON_IsNumber(key) ||
+            !cJSON_IsString(circuit) || date->valuestring == NULL ||
+            circuit->valuestring == NULL || strncmp(date->valuestring, today, 10) >= 0) {
+            continue;
+        }
+        if (latest_date[0] == '\0' || strncmp(date->valuestring, latest_date, 10) > 0) {
+            strlcpy(latest_date, date->valuestring, sizeof(latest_date));
+            strlcpy(latest_circuit, circuit->valuestring, sizeof(latest_circuit));
+            latest_key = (int)key->valuedouble;
+        }
+    }
+    cJSON_Delete(sessions);
+    if (latest_key <= 0) return;
+
+    snprintf(url, sizeof(url),
+             "https://api.openf1.org/v1/session_result?session_key=%d", latest_key);
+    if (tech_http_get(url, "application/json", response) != ESP_OK ||
+        response->status_code != 200) return;
+
+    int podium_numbers[3] = {-1, -1, -1};
+    cJSON *results = cJSON_Parse(response->body);
+    if (!cJSON_IsArray(results)) {
+        cJSON_Delete(results);
+        return;
+    }
+    cJSON *entry = NULL;
+    cJSON_ArrayForEach(entry, results) {
+        cJSON *position = cJSON_GetObjectItemCaseSensitive(entry, "position");
+        cJSON *number = cJSON_GetObjectItemCaseSensitive(entry, "driver_number");
+        cJSON *dnf = cJSON_GetObjectItemCaseSensitive(entry, "dnf");
+        cJSON *dns = cJSON_GetObjectItemCaseSensitive(entry, "dns");
+        cJSON *dsq = cJSON_GetObjectItemCaseSensitive(entry, "dsq");
+        if (!cJSON_IsNumber(position) || !cJSON_IsNumber(number) ||
+            (cJSON_IsTrue(dnf)) || (cJSON_IsTrue(dns)) || (cJSON_IsTrue(dsq))) continue;
+        int pos = (int)position->valuedouble;
+        if (pos >= 1 && pos <= 3) podium_numbers[pos - 1] = (int)number->valuedouble;
+    }
+    cJSON_Delete(results);
+
+    char names[3][40] = {{0}};
+    snprintf(url, sizeof(url),
+             "https://api.openf1.org/v1/drivers?session_key=%d", latest_key);
+    if (tech_http_get(url, "application/json", response) == ESP_OK &&
+        response->status_code == 200) {
+        cJSON *drivers = cJSON_Parse(response->body);
+        if (cJSON_IsArray(drivers)) {
+            cJSON *driver = NULL;
+            cJSON_ArrayForEach(driver, drivers) {
+                cJSON *number = cJSON_GetObjectItemCaseSensitive(driver, "driver_number");
+                cJSON *name = cJSON_GetObjectItemCaseSensitive(driver, "name_acronym");
+                if (!cJSON_IsNumber(number) || !cJSON_IsString(name) ||
+                    name->valuestring == NULL) continue;
+                for (int i = 0; i < 3; i++) {
+                    if (podium_numbers[i] == (int)number->valuedouble) {
+                        strlcpy(names[i], name->valuestring, sizeof(names[i]));
+                    }
+                }
+            }
+        }
+        cJSON_Delete(drivers);
+    }
+
+    size_t used = strlen(details);
+    if (used >= capacity) return;
+    int written = snprintf(details + used, capacity - used,
+                           "%sLAST RACE - %.10s %s",
+                           used == 0 ? "" : "\n\n", latest_date, latest_circuit);
+    if (written < 0 || (size_t)written >= capacity - used) return;
+    used += (size_t)written;
+    for (int i = 0; i < 3; i++) {
+        if (podium_numbers[i] < 0) continue;
+        written = snprintf(details + used, capacity - used, "\nP%d  %s%s#%d",
+                           i + 1, names[i][0] ? names[i] : "CAR ",
+                           names[i][0] ? "  " : "", podium_numbers[i]);
+        if (written < 0 || (size_t)written >= capacity - used) break;
+        used += (size_t)written;
+    }
+}
+
 static void f1_fetch_task(void *arg)
 {
     (void)arg;
@@ -1148,12 +1251,15 @@ static void f1_fetch_task(void *arg)
             result.clock_valid = false;
         }
     }
-    free(response);
-
     if (count == 0) {
+        free(response);
         strlcpy(result.message, "No race sessions found for this season", sizeof(result.message));
         goto finished;
     }
+    if (clock_valid) {
+        f1_append_latest_result(response, result.details, sizeof(result.details), today, year);
+    }
+    free(response);
     strlcpy(result.title, result.clock_valid ? "UPCOMING RACES" : "RECENT RACES",
             sizeof(result.title));
     result.ok = true;
