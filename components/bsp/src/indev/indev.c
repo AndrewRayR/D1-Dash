@@ -75,27 +75,29 @@ esp_err_t indev_get_major_value(indev_data_t *data)
     static uint32_t err_cnt = 0;
 
     switch (g_major_dev) {
-    case BSP_INDEV_TP:
-        if (ESP_OK == indev_tp_read(&tp_num, &x, &y, &btn_val)) {
+    case BSP_INDEV_TP: {
+        esp_err_t read_ret = indev_tp_read(&tp_num, &x, &y, &btn_val);
+        if (ESP_OK == read_ret) {
             data->x = x;
             data->y = y;
             data->btn_val = btn_val;
-            if (tp_num > 0) {
-                data->pressed = true;
-            } else {
-                data->pressed = false;
-            }
-            err_cnt=0;
+            data->pressed = (tp_num > 0);
+            err_cnt = 0;
         } else {
-            // i2c read  error
+            /* Do not report success with stale/uninitialized touch state. */
             err_cnt++;
-            if( err_cnt > 100) {
+            if (err_cnt == 1) {
+                ESP_LOGW("indev", "Touch read failed: %s", esp_err_to_name(read_ret));
+            }
+            if (err_cnt > 100) {
                 err_cnt = 0;
-                ESP_LOGE("indev", "indev_tp_read err, reset...");
+                ESP_LOGE("indev", "Repeated touch read errors; resetting touch controller");
                 indev_reset();
             }
+            return read_ret;
         }
         break;
+    }
     case BSP_INDEV_HID:
         if (ESP_OK == indev_hid_get_value(&hid_indev_data)) {
             data->x = hid_indev_data.x;

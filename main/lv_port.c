@@ -148,15 +148,17 @@ static void button_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 static IRAM_ATTR void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
     static lv_coord_t last_x = 0, last_y = 0;
-    /* The BSP touch driver already applies the board's configured swap/mirror
-     * transforms. Do not invert the coordinates a second time here.
-     * The BSP currently returns ESP_OK even after an underlying touch-I2C read
-     * fails, leaving this structure untouched; zero-init to avoid random presses. */
+    static bool previous_pressed = false;
+    /* The BSP touch driver applies the board's configured swap/mirror transforms. */
     indev_data_t indev_data = {0};
     if (ESP_OK != indev_get_major_value(&indev_data)) {
-        data->state = LV_INDEV_STATE_REL;
+        data->state = LV_INDEV_STATE_RELEASED;
         data->point.x = last_x;
         data->point.y = last_y;
+        if (previous_pressed) {
+            ESP_LOGW(TAG, "Touch read error forced release at (%d,%d)", last_x, last_y);
+            previous_pressed = false;
+        }
         return;
     }
 
@@ -169,13 +171,20 @@ static IRAM_ATTR void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *
                             ? (lv_coord_t)indev_data.y : 0;
         last_x = data->point.x;
         last_y = data->point.y;
+        if (!previous_pressed) {
+            ESP_LOGI(TAG, "Touch pressed at (%d,%d)", last_x, last_y);
+        }
+        previous_pressed = true;
         indicator_display_sleep_restart();
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
         data->point.x = last_x;
         data->point.y = last_y;
+        if (previous_pressed) {
+            ESP_LOGI(TAG, "Touch released at (%d,%d)", last_x, last_y);
+        }
+        previous_pressed = false;
     }
-    //ESP_LOGI(TAG, "Touch (%u) : [%3d, %3d]", indev_data.pressed, data->point.x, data->point.y);
 }
 
 /**
