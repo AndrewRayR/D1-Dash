@@ -22,19 +22,21 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 ## Current replacement-machine findings
 
 - Remote Desktop Commander connection to DESKTOP-415LS7I: online.
-- Project checkout: C:\Projects\AndrewRayR\D1-Dash.
-- ESP-IDF 5.4.4 installed at C:\Espressif\frameworks\esp-idf-v5.4.4.
-- ESP32-S3 toolchain and Python environment installed under C:\Users\andre\.espressif.
-- Clean build command: idf.py set-target esp32s3 followed by idf.py build.
-- Build result: PASS, exit code 0; generated build/indicator_basis.bin.
-- Firmware binary size: 0x217730 bytes; app partition is 0x400000 bytes with 48% free.
-- The build initially reported two renamed Wi-Fi config options. sdkconfig.defaults was updated, then CMake was reconfigured and the incremental build passed again without those migration warnings.
-- USB serial scan showed COM22 as “USB Serial Device” with VID 2E8A / PID 000A. This identifies a USB serial device but does not prove it is the Indicator D1 ESP32-S3 interface, so it must not be flashed based on this scan alone.
-- Firmware has not been flashed; display, touch, Wi-Fi and API behavior remain unverified on hardware.
+- Project checkout: `C:\Projects\AndrewRayR\D1-Dash`.
+- ESP-IDF 5.4.4 installed at `C:\Espressif\frameworks\esp-idf-v5.4.4`.
+- ESP32-S3 toolchain and Python environment installed under `C:\Users\andre\.espressif`.
+- COM21 was verified non-destructively with esptool: ESP32-S3 revision v0.2, Wi-Fi/BLE, 8 MB flash and 8 MB PSRAM. COM22 enumerates separately and has not been flashed.
+- Firmware was flashed successfully to COM21. Serial logs identify the board as `SenseCAP_Indicator`, confirm PSRAM initialization, Wi-Fi association, DHCP, internet connectivity and NTP time synchronization.
+- The first hardware boot exposed a main-task stack overflow during UI initialization. `CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192` was added to `sdkconfig.defaults`; after rebuilding and reflashing, startup proceeds past UI initialization without that stack-overflow error.
+- The first F1 tile tap exposed an LVGL null-screen crash. The F1 page is now built during UI startup and guarded against a failed root-screen allocation. The latest firmware boots and connects to Wi-Fi, but touchscreen navigation into F1 still needs a physical retest.
+- F1 screen code is implemented in `main/tech_terminal_ui.c`: it requests race sessions from OpenF1 in a worker task, shows up to five upcoming races, has loading/error states, and falls back to recent races if the season has no future sessions. The endpoint has been tested from the development PC; the device-side F1 request and displayed result are not yet verified.
+- Clean ESP-IDF 5.4.4 build result: PASS, exit code 0; generated `build/indicator_basis.bin`.
+- Latest firmware binary size: `0x218360` bytes; app partition is `0x400000` bytes with 48% free.
+- The two renamed Wi-Fi config options were updated in `sdkconfig.defaults`; reconfigure/build completed without the previous migration warnings.
 
 ## Next actions
 
-1. Identify the exact USB serial interface for the Indicator D1 before flashing.
-2. Flash only after the device identity and COM port are confirmed.
-3. Verify the touchscreen home screen and Wi-Fi behavior on hardware.
-4. Implement and test the remaining module work, starting with the F1 tile, which is currently a placeholder.
+1. Physically tap the F1 tile and confirm the F1 page opens without a reset; inspect the serial log for the OpenF1 response.
+2. Confirm the home screen, back navigation and other modules by touch.
+3. If OpenF1 TLS or memory errors appear on-device, inspect the exact error before changing TLS or heap settings.
+4. Add F1 results and caching, then continue reliability and remaining module work.

@@ -8,10 +8,13 @@
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
+#include "esp_heap_caps.h"
+#include "esp_log.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static lv_obj_t *home;
 static lv_obj_t *active_page;
@@ -34,6 +37,7 @@ static bool pi_request_active;
 #define TECH_EVENT_PI_RESULT 0x4001
 #define TECH_EVENT_WEB_RESULT 0x4002
 #define TECH_EVENT_GITHUB_RESULT 0x4003
+#define TECH_EVENT_F1_RESULT 0x4004
 #define WEB_HISTORY_MAX 8
 static lv_obj_t *web_page;
 static lv_obj_t *web_url_field;
@@ -49,6 +53,11 @@ static lv_obj_t *github_status;
 static lv_obj_t *github_details;
 static bool github_request_active;
 static char github_web_url[160];
+static lv_obj_t *f1_page;
+static lv_obj_t *f1_status;
+static lv_obj_t *f1_details;
+static bool f1_request_active;
+static bool f1_preparing;
 typedef struct {
     bool ok;
     char hostname[48];
@@ -69,6 +78,13 @@ typedef struct {
     char html_url[160];
     char message[96];
 } github_result_t;
+typedef struct {
+    bool ok;
+    bool clock_valid;
+    char title[80];
+    char details[900];
+    char message[96];
+} f1_result_t;
 static void show_network(lv_event_t *event);
 static void open_wifi_manager(lv_event_t *event);
 static void open_pi_page(void);
@@ -89,6 +105,11 @@ static void github_refresh_event(lv_event_t *event);
 static void github_open_web_event(lv_event_t *event);
 static void github_result_event(void *handler_args, esp_event_base_t base,
                                 int32_t id, void *event_data);
+static void open_f1_page(void);
+static void f1_refresh_event(lv_event_t *event);
+static void f1_fetch_task(void *arg);
+static void f1_result_event(void *handler_args, esp_event_base_t base,
+                            int32_t id, void *event_data);
 static void settings_brightness_event(lv_event_t *event);
 static void settings_timeout_event(lv_event_t *event);
 ESP_EVENT_DECLARE_BASE(VIEW_EVENT_BASE);
@@ -122,6 +143,8 @@ void tech_terminal_ui_init(void)
         VIEW_EVENT_BASE, TECH_EVENT_WEB_RESULT, web_result_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
         VIEW_EVENT_BASE, TECH_EVENT_GITHUB_RESULT, github_result_event, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
+        VIEW_EVENT_BASE, TECH_EVENT_F1_RESULT, f1_result_event, NULL));
     home = lv_obj_create(NULL);
     lv_obj_clear_flag(home, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(home, lv_color_hex(0x0B1118), 0);
@@ -214,6 +237,10 @@ void tech_terminal_ui_init(void)
     lv_obj_t *network_text = make_label(network, "NETWORK", 11, 0x55A8FF);
     lv_obj_center(network_text);
     configure_wifi_screen();
+    /* Build this screen while startup heap is available; screen creation can fail later under pressure. */
+    f1_preparing = true;
+    open_f1_page();
+    f1_preparing = false;
     lv_scr_load(home);
 }
 
@@ -1006,6 +1033,237 @@ static void open_github_page(void)
     github_refresh_event(NULL);
 }
 
+static size_t f1_format_sessions(const char *body, char *details, size_t capacity,
+                                 const char *today, bool upcoming_only)
+{
+    cJSON *root = cJSON_Parse(body);
+    if (root == NULL || !cJSON_IsArray(root)) {
+        cJSON_Delete(root);
+        return 0;
+    }
+
+    char recent[5][96] = {{0}};
+    size_t total = 0;
+    size_t shown = 0;
+    cJSON *session = NULL;
+    cJSON_ArrayForEach(session, root) {
+        cJSON *date = cJSON_GetObjectItemCaseSensitive(session, "date_start");
+        cJSON *circuit = cJSON_GetObjectItemCaseSensitive(session, "circuit_short_name");
+        if (!cJSON_IsString(date) || !cJSON_IsString(circuit) ||
+            date->valuestring == NULL || circuit->valuestring == NULL) {
+            continue;
+        }
+        if (upcoming_only && strncmp(date->valuestring, today, 10) < 0) {
+            continue;
+        }
+        char row[96];
+        snprintf(row, sizeof(row), "%.10s  %s", date->valuestring, circuit->valuestring);
+        if (upcoming_only) {
+            size_t used = strlen(details);
+            if (shown < 5 && used < capacity) {
+                int written = snprintf(details + used, capacity - used, "%s%s",
+                                       shown == 0 ? "" : "\n", row);
+                if (written > 0 && (size_t)written < capacity - used) {
+                    shown++;
+                }
+            }
+            if (shown >= 5) break;
+        } else {
+            strlcpy(recent[total % 5], row, sizeof(recent[0]));
+            total++;
+        }
+    }
+
+    if (!upcoming_only && total > 0) {
+        size_t count = total < 5 ? total : 5;
+        size_t start = total > 5 ? total % 5 : 0;
+        details[0] = '\0';
+        for (size_t i = 0; i < count; i++) {
+            const char *row = recent[(start + i) % 5];
+            size_t used = strlen(details);
+            if (used >= capacity) break;
+            int written = snprintf(details + used, capacity - used, "%s%s",
+                                   i == 0 ? "" : "\n", row);
+            if (written < 0 || (size_t)written >= capacity - used) break;
+            shown++;
+        }
+    }
+
+    cJSON_Delete(root);
+    return shown;
+}
+
+static void f1_fetch_task(void *arg)
+{
+    (void)arg;
+    f1_result_t result = {0};
+    time_t now = time(NULL);
+    struct tm utc = {0};
+    char today[16] = "2026-10-27";
+    int year = 2026;
+    bool clock_valid = now > 1767225600;
+    if (clock_valid && gmtime_r(&now, &utc) != NULL) {
+        year = utc.tm_year + 1900;
+        strftime(today, sizeof(today), "%Y-%m-%d", &utc);
+    }
+    result.clock_valid = clock_valid;
+    tech_http_response_t *response = calloc(1, sizeof(*response));
+    if (response == NULL) {
+        strlcpy(result.message, "Not enough memory for the F1 response", sizeof(result.message));
+        goto finished;
+    }
+
+    char url[224];
+    if (clock_valid) {
+        snprintf(url, sizeof(url),
+                 "https://api.openf1.org/v1/sessions?year=%d&session_name=Race&date_start%%3E%%3D%.10sT00%%3A00%%3A00Z",
+                 year, today);
+    } else {
+        snprintf(url, sizeof(url),
+                 "https://api.openf1.org/v1/sessions?year=%d&session_name=Race", year);
+    }
+
+    esp_err_t err = tech_http_get(url, "application/json", response);
+    if (err != ESP_OK || response->status_code != 200) {
+        snprintf(result.message, sizeof(result.message),
+                 "OpenF1 request failed (HTTP %d); check Wi-Fi", response->status_code);
+        free(response);
+        goto finished;
+    }
+
+    size_t count = f1_format_sessions(response->body, result.details,
+                                       sizeof(result.details), today, clock_valid);
+    if (count == 0 && clock_valid) {
+        /* If the season has ended, show its latest races instead of a blank page. */
+        snprintf(url, sizeof(url),
+                 "https://api.openf1.org/v1/sessions?year=%d&session_name=Race", year);
+        memset(response, 0, sizeof(*response));
+        err = tech_http_get(url, "application/json", response);
+        if (err == ESP_OK && response->status_code == 200) {
+            count = f1_format_sessions(response->body, result.details,
+                                       sizeof(result.details), today, false);
+            result.clock_valid = false;
+        }
+    }
+    free(response);
+
+    if (count == 0) {
+        strlcpy(result.message, "No race sessions found for this season", sizeof(result.message));
+        goto finished;
+    }
+    strlcpy(result.title, result.clock_valid ? "UPCOMING RACES" : "RECENT RACES",
+            sizeof(result.title));
+    result.ok = true;
+
+finished:
+    f1_request_active = false;
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, TECH_EVENT_F1_RESULT,
+                      &result, sizeof(result), pdMS_TO_TICKS(1000));
+    vTaskDelete(NULL);
+}
+
+static void f1_refresh_event(lv_event_t *event)
+{
+    (void)event;
+    if (f1_request_active) return;
+    f1_request_active = true;
+    lv_label_set_text(f1_status, "LOADING RACE SCHEDULE...");
+    lv_label_set_text(f1_details, "Contacting api.openf1.org");
+    if (xTaskCreate(f1_fetch_task, "f1_schedule", 8192, NULL, 4, NULL) != pdPASS) {
+        f1_request_active = false;
+        lv_label_set_text(f1_status, "COULD NOT START REQUEST");
+    }
+}
+
+static void f1_result_event(void *handler_args, esp_event_base_t base,
+                            int32_t id, void *event_data)
+{
+    (void)handler_args;
+    (void)base;
+    if (id != TECH_EVENT_F1_RESULT || event_data == NULL) return;
+    f1_result_t *result = event_data;
+    lv_port_sem_take();
+    if (f1_page != NULL && active_page == f1_page &&
+        f1_status != NULL && f1_details != NULL) {
+        if (result->ok) {
+            lv_label_set_text(f1_status, result->title);
+            lv_label_set_text(f1_details, result->details);
+            lv_obj_set_style_text_color(f1_status, lv_color_hex(0x42D6C3), 0);
+        } else {
+            lv_label_set_text(f1_status, "SCHEDULE UNAVAILABLE");
+            lv_label_set_text(f1_details, result->message);
+            lv_obj_set_style_text_color(f1_status, lv_color_hex(0xFF6685), 0);
+        }
+    }
+    lv_port_sem_give();
+}
+
+static void open_f1_page(void)
+{
+    if (f1_page == NULL) {
+        f1_page = lv_obj_create(NULL);
+        if (f1_page == NULL) {
+            ESP_LOGE("f1_ui", "Could not allocate F1 screen; internal=%u psram=%u bytes free",
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                     (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+            return;
+        }
+        lv_obj_set_style_bg_color(f1_page, lv_color_hex(0x0B1118), 0);
+        lv_obj_set_style_border_width(f1_page, 0, 0);
+        lv_obj_t *top = lv_obj_create(f1_page);
+        lv_obj_set_size(top, 440, 42);
+        lv_obj_align(top, LV_ALIGN_TOP_MID, 0, 14);
+        lv_obj_set_style_bg_color(top, lv_color_hex(0x111C27), 0);
+        lv_obj_set_style_border_width(top, 0, 0);
+        lv_obj_set_style_radius(top, 12, 0);
+        lv_obj_clear_flag(top, LV_OBJ_FLAG_SCROLLABLE);
+        make_label(top, "D1  /  TECH TERMINAL", 17, 0xEAF2F8);
+
+        lv_obj_t *back = lv_btn_create(f1_page);
+        lv_obj_set_size(back, 96, 38);
+        lv_obj_align(back, LV_ALIGN_TOP_LEFT, 20, 72);
+        lv_obj_set_style_bg_color(back, lv_color_hex(0x17304A), 0);
+        lv_obj_set_style_border_width(back, 0, 0);
+        lv_obj_add_event_cb(back, show_home, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *back_text = make_label(back, "< HOME", 12, 0x55A8FF);
+        lv_obj_center(back_text);
+        lv_obj_t *title = make_label(f1_page, "FORMULA 1", 22, 0xF2F6FA);
+        lv_obj_align(title, LV_ALIGN_TOP_LEFT, 136, 78);
+
+        lv_obj_t *panel = lv_obj_create(f1_page);
+        lv_obj_set_size(panel, 436, 270);
+        lv_obj_align(panel, LV_ALIGN_TOP_MID, 0, 132);
+        lv_obj_set_style_bg_color(panel, lv_color_hex(0x14212D), 0);
+        lv_obj_set_style_border_color(panel, lv_color_hex(0x2A3B49), 0);
+        lv_obj_set_style_radius(panel, 14, 0);
+        lv_obj_set_style_pad_all(panel, 16, 0);
+        lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+        f1_status = make_label(panel, "READY", 15, 0x42D6C3);
+        lv_obj_align(f1_status, LV_ALIGN_TOP_LEFT, 4, 4);
+        f1_details = make_label(panel, "Race calendar\nTap REFRESH to load upcoming races.", 14, 0xC1CFD9);
+        lv_obj_set_width(f1_details, 390);
+        lv_label_set_long_mode(f1_details, LV_LABEL_LONG_WRAP);
+        lv_obj_align(f1_details, LV_ALIGN_TOP_LEFT, 4, 42);
+
+        lv_obj_t *refresh = lv_btn_create(f1_page);
+        lv_obj_set_size(refresh, 120, 40);
+        lv_obj_align(refresh, LV_ALIGN_BOTTOM_RIGHT, -20, -18);
+        lv_obj_set_style_bg_color(refresh, lv_color_hex(0x17304A), 0);
+        lv_obj_set_style_border_width(refresh, 0, 0);
+        lv_obj_add_event_cb(refresh, f1_refresh_event, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *refresh_text = make_label(refresh, "REFRESH", 12, 0x55A8FF);
+        lv_obj_center(refresh_text);
+    }
+    if (f1_preparing) return;
+    if (f1_page == NULL) {
+        ESP_LOGE("f1_ui", "F1 screen is unavailable; refusing to load a null screen");
+        return;
+    }
+    active_page = f1_page;
+    lv_scr_load(f1_page);
+    f1_refresh_event(NULL);
+}
+
 static void open_module(lv_event_t *event)
 {
     int index = (int)(intptr_t)lv_event_get_user_data(event);
@@ -1023,6 +1281,10 @@ static void open_module(lv_event_t *event)
     }
     if (index == 3) {
         open_github_page();
+        return;
+    }
+    if (index == 4) {
+        open_f1_page();
         return;
     }
 
