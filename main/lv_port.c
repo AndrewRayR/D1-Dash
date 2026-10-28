@@ -149,8 +149,10 @@ static IRAM_ATTR void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *
 {
     static lv_coord_t last_x = 0, last_y = 0;
     /* The BSP touch driver already applies the board's configured swap/mirror
-     * transforms. Do not invert the coordinates a second time here. */
-    indev_data_t indev_data;
+     * transforms. Do not invert the coordinates a second time here.
+     * The BSP currently returns ESP_OK even after an underlying touch-I2C read
+     * fails, leaving this structure untouched; zero-init to avoid random presses. */
+    indev_data_t indev_data = {0};
     if (ESP_OK != indev_get_major_value(&indev_data)) {
         data->state = LV_INDEV_STATE_REL;
         data->point.x = last_x;
