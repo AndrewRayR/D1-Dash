@@ -1182,6 +1182,8 @@ static void f1_result_event(void *handler_args, esp_event_base_t base,
     (void)base;
     if (id != TECH_EVENT_F1_RESULT || event_data == NULL) return;
     f1_result_t *result = event_data;
+    ESP_LOGI("f1_ui", "Schedule result: ok=%d, status=%s", result->ok,
+             result->ok ? result->title : result->message);
     lv_port_sem_take();
     if (f1_page != NULL && active_page == f1_page &&
         f1_status != NULL && f1_details != NULL) {
@@ -1201,14 +1203,20 @@ static void f1_result_event(void *handler_args, esp_event_base_t base,
 static void open_f1_page(void)
 {
     if (f1_page == NULL) {
-        f1_page = lv_obj_create(NULL);
+        /* Use a hidden overlay on the home screen rather than a dynamically loaded LVGL screen. */
+        f1_page = lv_obj_create(home);
         if (f1_page == NULL) {
-            ESP_LOGE("f1_ui", "Could not allocate F1 screen; internal=%u psram=%u bytes free",
+            ESP_LOGE("f1_ui", "Could not allocate F1 overlay; internal=%u psram=%u bytes free",
                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
                      (unsigned)heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
             return;
         }
+        lv_obj_set_size(f1_page, LV_PCT(100), LV_PCT(100));
+        lv_obj_align(f1_page, LV_ALIGN_TOP_LEFT, 0, 0);
+        lv_obj_add_flag(f1_page, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(f1_page, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_style_bg_color(f1_page, lv_color_hex(0x0B1118), 0);
+        lv_obj_set_style_bg_opa(f1_page, LV_OPA_COVER, 0);
         lv_obj_set_style_border_width(f1_page, 0, 0);
         lv_obj_t *top = lv_obj_create(f1_page);
         lv_obj_set_size(top, 440, 42);
@@ -1259,8 +1267,10 @@ static void open_f1_page(void)
         ESP_LOGE("f1_ui", "F1 screen is unavailable; refusing to load a null screen");
         return;
     }
+    ESP_LOGI("f1_ui", "Opening F1 schedule overlay");
     active_page = f1_page;
-    lv_scr_load(f1_page);
+    lv_obj_move_foreground(f1_page);
+    lv_obj_clear_flag(f1_page, LV_OBJ_FLAG_HIDDEN);
     f1_refresh_event(NULL);
 }
 
@@ -1421,9 +1431,10 @@ static void open_settings(lv_event_t *event)
 static void show_home(lv_event_t *event)
 {
     (void)event;
+    if (f1_page != NULL) lv_obj_add_flag(f1_page, LV_OBJ_FLAG_HIDDEN);
     lv_scr_load(home);
     if (active_page != NULL && active_page != network_page &&
-        active_page != pi_page && active_page != web_page) {
+        active_page != pi_page && active_page != web_page && active_page != f1_page) {
         lv_obj_del_async(active_page);
     }
     active_page = NULL;
