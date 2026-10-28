@@ -28,14 +28,13 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Clean build command: idf.py set-target esp32s3 followed by idf.py build.
 - Build result: PASS, exit code 0; generated build/indicator_basis.bin.
 - Firmware binary size: 0x217730 bytes; app partition is 0x400000 bytes with 48% free.
-- The build reported two renamed Wi-Fi config options; sdkconfig.defaults has now been updated to the current ESP-IDF names.
+- The build initially reported two renamed Wi-Fi config options. sdkconfig.defaults was updated, then CMake was reconfigured and the incremental build passed again without those migration warnings.
 - USB serial scan showed COM22 as “USB Serial Device” with VID 2E8A / PID 000A. This identifies a USB serial device but does not prove it is the Indicator D1 ESP32-S3 interface, so it must not be flashed based on this scan alone.
 - Firmware has not been flashed; display, touch, Wi-Fi and API behavior remain unverified on hardware.
 
 ## Next actions
 
-1. Rebuild after the sdkconfig.defaults cleanup and confirm there are no configuration-migration warnings.
-2. Identify the exact USB serial interface for the Indicator D1 before flashing.
-3. Flash only after the device identity and COM port are confirmed.
-4. Verify the touchscreen home screen and Wi-Fi behavior on hardware.
-5. Implement and test the remaining module work, starting with the F1 tile, which is currently a placeholder.
+1. Identify the exact USB serial interface for the Indicator D1 before flashing.
+2. Flash only after the device identity and COM port are confirmed.
+3. Verify the touchscreen home screen and Wi-Fi behavior on hardware.
+4. Implement and test the remaining module work, starting with the F1 tile, which is currently a placeholder.
