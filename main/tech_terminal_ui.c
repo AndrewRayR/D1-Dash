@@ -658,11 +658,29 @@ finished:
     vTaskDelete(NULL);
 }
 
+static bool web_url_valid(const char *url)
+{
+    if (url == NULL) return false;
+    const char *authority = NULL;
+    if (strncmp(url, "https://", 8) == 0) authority = url + 8;
+    else if (strncmp(url, "http://", 7) == 0) authority = url + 7;
+    else return false;
+
+    if (*authority == '\0' || *authority == '/' || *authority == '?' ||
+        *authority == '#') return false;
+    const char *end = authority;
+    while (*end && *end != '/' && *end != '?' && *end != '#') {
+        unsigned char ch = (unsigned char)*end;
+        if (ch <= 0x20 || ch >= 0x7f || ch == '\\' || ch == '@') return false;
+        end++;
+    }
+    return end > authority;
+}
+
 static void web_start_fetch(const char *url, bool add_history)
 {
-    if (web_request_active || url == NULL ||
-        (strncmp(url, "https://", 8) != 0 && strncmp(url, "http://", 7) != 0)) {
-        lv_label_set_text(web_status, "Enter a full http:// or https:// URL");
+    if (web_request_active || !web_url_valid(url)) {
+        lv_label_set_text(web_status, "Enter a valid HTTP(S) URL with a host");
         return;
     }
     web_request_t *request = calloc(1, sizeof(*request));

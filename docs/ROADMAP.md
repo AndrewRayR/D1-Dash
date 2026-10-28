@@ -36,7 +36,8 @@
 
 ## Phase 3 — Web Reader
 
-- [ ] Address entry and URL validation.
+- [x] Address entry and HTTP(S) host validation (reject empty hosts, whitespace/control characters, userinfo and backslashes).
+- [ ] Robust URL normalization and persistent bookmarks.
 - [ ] HTTP/HTTPS retrieval with TLS verification and strict response limits.
 - [ ] Text-first HTML parsing, links and basic navigation.
 - [ ] History and bookmarks stored persistently.
