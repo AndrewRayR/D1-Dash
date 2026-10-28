@@ -58,6 +58,9 @@ static lv_obj_t *f1_status;
 static lv_obj_t *f1_details;
 static bool f1_request_active;
 static bool f1_preparing;
+/* Fixed-size, RAM-only fallback: at most 900 bytes and valid for 30 minutes. */
+static char f1_cache_details[900];
+static time_t f1_cache_time;
 typedef struct {
     bool ok;
     char hostname[48];
@@ -1154,8 +1157,19 @@ static void f1_fetch_task(void *arg)
     strlcpy(result.title, result.clock_valid ? "UPCOMING RACES" : "RECENT RACES",
             sizeof(result.title));
     result.ok = true;
+    strlcpy(f1_cache_details, result.details, sizeof(f1_cache_details));
+    f1_cache_time = time(NULL);
 
 finished:
+    /* If the network is down, preserve a recent successful schedule rather than
+       replacing useful data with an error. Cache is fixed-size and expires. */
+    if (!result.ok && f1_cache_time > 0 && now >= f1_cache_time &&
+        difftime(now, f1_cache_time) <= 1800.0 && f1_cache_details[0] != '\0') {
+        result.ok = true;
+        strlcpy(result.title, "CACHED RACES (OFFLINE)", sizeof(result.title));
+        strlcpy(result.details, f1_cache_details, sizeof(result.details));
+        ESP_LOGW("f1_ui", "OpenF1 unavailable; displaying cached schedule");
+    }
     f1_request_active = false;
     esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, TECH_EVENT_F1_RESULT,
                       &result, sizeof(result), pdMS_TO_TICKS(1000));

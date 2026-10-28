@@ -1,6 +1,6 @@
 # Development Status
 
-Last updated: 2026-10-27
+Last updated: 2026-10-28
 
 ## Recovery context
 
@@ -29,14 +29,17 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Firmware was flashed successfully to COM21. Serial logs identify the board as `SenseCAP_Indicator`, confirm PSRAM initialization, Wi-Fi association, DHCP, internet connectivity and NTP time synchronization.
 - The first hardware boot exposed a main-task stack overflow during UI initialization. `CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192` was added to `sdkconfig.defaults`; after rebuilding and reflashing, startup proceeds past UI initialization without that stack-overflow error.
 - The first F1 tile tap exposed an LVGL crash when dynamically loading a separate screen; pre-creating that screen did not eliminate the issue. The F1 UI now uses a hidden overlay attached to the home screen instead of loading a new LVGL screen. The user subsequently tested the latest firmware on the physical Indicator D1: tapping F1 successfully contacted OpenF1, displayed upcoming races, and showed Refresh and Back Home controls. This confirms the F1 overlay, device-side network request, response parsing, and primary controls work on hardware.
-- F1 screen code is implemented in `main/tech_terminal_ui.c`: a hidden home-screen overlay requests race sessions from OpenF1 in a worker task, shows up to five upcoming races, has loading/error states, and falls back to recent races if the season has no future sessions. The user verified on the physical device that tapping F1 retrieves and displays upcoming races and exposes Refresh and Back Home controls. Race results and response caching are not implemented yet.
-- Clean ESP-IDF 5.4.4 build result: PASS, exit code 0; generated `build/indicator_basis.bin`.
-- Latest firmware binary size: `0x218470` bytes; app partition is `0x400000` bytes with 48% free.
+- F1 screen code is implemented in `main/tech_terminal_ui.c`: a hidden home-screen overlay requests race sessions from OpenF1 in a worker task, shows up to five upcoming races, has loading/error states, and falls back to recent races if the season has no future sessions. The user verified on the physical device that tapping F1 retrieves and displays upcoming races and exposes Refresh and Back Home controls.
+- F1 now retains the last successful schedule in a fixed 900-byte RAM buffer and can display it as `CACHED RACES (OFFLINE)` if a later request fails within 30 minutes. This cache is volatile and is lost on reboot; race results remain unimplemented.
+- Clean ESP-IDF 5.4.4 build result after the cache change: PASS, exit code 0; generated `build/indicator_basis.bin`.
+- The cache-enabled firmware was flashed successfully to verified port COM21; esptool verified image hashes and the board was hard-reset. COM22 remains untouched. Cache behavior still needs a physical touch test.
+- Latest firmware binary size: `0x2185a0` bytes; app partition is `0x400000` bytes with 48% free.
 - The two renamed Wi-Fi config options were updated in `sdkconfig.defaults`; reconfigure/build completed without the previous migration warnings.
 
 ## Next actions
 
 1. Verify Back Home returns to the home screen and that reopening F1 / pressing Refresh works repeatedly.
 2. Confirm the other modules and settings/navigation by touch.
-3. Add F1 results and a small response cache with clear freshness/error behavior.
-4. Continue reliability work and the remaining modules.
+3. Add F1 race results with clear session selection and API error handling.
+4. Physically test the flashed F1 cache and verify Back Home, repeated entry and Refresh by touch.
+5. Continue reliability work and the remaining modules.
