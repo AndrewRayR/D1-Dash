@@ -28,15 +28,15 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - COM21 was verified non-destructively with esptool: ESP32-S3 revision v0.2, Wi-Fi/BLE, 8 MB flash and 8 MB PSRAM. COM22 enumerates separately and has not been flashed.
 - Firmware was flashed successfully to COM21. Serial logs identify the board as `SenseCAP_Indicator`, confirm PSRAM initialization, Wi-Fi association, DHCP, internet connectivity and NTP time synchronization.
 - The first hardware boot exposed a main-task stack overflow during UI initialization. `CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192` was added to `sdkconfig.defaults`; after rebuilding and reflashing, startup proceeds past UI initialization without that stack-overflow error.
-- The first F1 tile tap exposed an LVGL crash when dynamically loading a separate screen; pre-creating that screen did not eliminate the issue. The F1 UI now uses a hidden overlay attached to the home screen instead of loading a new LVGL screen. The latest overlay firmware has booted, connected to Wi-Fi and synchronized time without a startup panic. The overlay itself has not yet been opened by touch after this change, so that physical retest remains outstanding.
-- F1 screen code is implemented in `main/tech_terminal_ui.c`: a hidden home-screen overlay requests race sessions from OpenF1 in a worker task, shows up to five upcoming races, has loading/error states, and falls back to recent races if the season has no future sessions. The exact date-filtered endpoint returned HTTP 200 from the development PC; the device-side F1 request and displayed result are not yet verified.
+- The first F1 tile tap exposed an LVGL crash when dynamically loading a separate screen; pre-creating that screen did not eliminate the issue. The F1 UI now uses a hidden overlay attached to the home screen instead of loading a new LVGL screen. The user subsequently tested the latest firmware on the physical Indicator D1: tapping F1 successfully contacted OpenF1, displayed upcoming races, and showed Refresh and Back Home controls. This confirms the F1 overlay, device-side network request, response parsing, and primary controls work on hardware.
+- F1 screen code is implemented in `main/tech_terminal_ui.c`: a hidden home-screen overlay requests race sessions from OpenF1 in a worker task, shows up to five upcoming races, has loading/error states, and falls back to recent races if the season has no future sessions. The user verified on the physical device that tapping F1 retrieves and displays upcoming races and exposes Refresh and Back Home controls. Race results and response caching are not implemented yet.
 - Clean ESP-IDF 5.4.4 build result: PASS, exit code 0; generated `build/indicator_basis.bin`.
 - Latest firmware binary size: `0x218470` bytes; app partition is `0x400000` bytes with 48% free.
 - The two renamed Wi-Fi config options were updated in `sdkconfig.defaults`; reconfigure/build completed without the previous migration warnings.
 
 ## Next actions
 
-1. Physically tap the F1 tile and confirm the overlay opens without a reset; the COM21 serial monitor is running and logs `f1_ui` when the tile opens and when the schedule request completes.
-2. Confirm the home screen, back navigation and other modules by touch.
-3. If OpenF1 TLS or memory errors appear on-device, inspect the exact error before changing TLS or heap settings.
-4. Add F1 results and caching, then continue reliability and remaining module work.
+1. Verify Back Home returns to the home screen and that reopening F1 / pressing Refresh works repeatedly.
+2. Confirm the other modules and settings/navigation by touch.
+3. Add F1 results and a small response cache with clear freshness/error behavior.
+4. Continue reliability work and the remaining modules.

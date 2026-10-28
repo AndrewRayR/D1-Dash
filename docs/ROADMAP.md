@@ -8,7 +8,8 @@
 - [x] Run a clean ESP32-S3 build; the recovered BSP compatibility changes compile successfully.
 - [x] Identify COM21 conclusively with esptool as the Indicator D1 ESP32-S3 (8 MB flash, 8 MB PSRAM); leave COM22 untouched.
 - [x] Flash the ESP32-S3 through COM21 and confirm the SenseCAP Indicator board initializes and joins Wi-Fi.
-- [ ] Verify touchscreen navigation, including opening the F1 screen, on the physical display.
+- [x] Verify touchscreen navigation into F1 on the physical display; the user confirmed upcoming races load and Refresh/Back Home controls appear.
+- [ ] Verify Back Home, repeated F1 entry and Refresh by touch.
 
 ## Phase 1 — Stable home and navigation
 
@@ -25,7 +26,8 @@
 - [ ] Raspberry Pi Monitor: configurable JSON endpoint and clear offline state.
 - [ ] GitHub Monitor: configurable repository, recent workflow status and API rate-limit handling.
 - [x] F1: basic schedule screen, OpenF1 request task, loading/error states, and recent-race fallback.
-- [ ] F1: validate on-device API response, then add results and caching.
+- [x] Validate the OpenF1 schedule request and display on the physical device.
+- [ ] F1: add race results and a bounded response cache.
 - [ ] Information: configurable weather/news/NASA feeds.
 
 ## Phase 3 — Web Reader
