@@ -147,28 +147,33 @@ static void button_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
  */
 static IRAM_ATTR void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
-    uint8_t tp_num = 0;
-    static uint16_t x = 0, y = 0, btn_val = 0;
-    /* Read touch point(s) via touch IC */
+    static lv_coord_t last_x = 0, last_y = 0;
+    /* The BSP touch driver already applies the board's configured swap/mirror
+     * transforms. Do not invert the coordinates a second time here. */
     indev_data_t indev_data;
     if (ESP_OK != indev_get_major_value(&indev_data)) {
+        data->state = LV_INDEV_STATE_REL;
+        data->point.x = last_x;
+        data->point.y = last_y;
         return;
     }
-    /* FT series touch IC might return 0xff before first touch. */
-    if (indev_data.pressed) {
-        data->state = LV_INDEV_STATE_PR;
-        data->point.x = CONFIG_LCD_EVB_SCREEN_WIDTH - indev_data.x;
-        data->point.y = CONFIG_LCD_EVB_SCREEN_HEIGHT - indev_data.y;
-        x = data->point.x;
-        y = data->point.y;
 
+    if (indev_data.pressed) {
+        data->state = LV_INDEV_STATE_PRESSED;
+        /* Keep pointer coordinates inside the active LVGL display bounds. */
+        data->point.x = (indev_data.x >= 0 && indev_data.x < CONFIG_LCD_EVB_SCREEN_WIDTH)
+                            ? (lv_coord_t)indev_data.x : 0;
+        data->point.y = (indev_data.y >= 0 && indev_data.y < CONFIG_LCD_EVB_SCREEN_HEIGHT)
+                            ? (lv_coord_t)indev_data.y : 0;
+        last_x = data->point.x;
+        last_y = data->point.y;
         indicator_display_sleep_restart();
     } else {
-        data->state = LV_INDEV_STATE_REL;
-        data->point.x = x;
-        data->point.y = y;
+        data->state = LV_INDEV_STATE_RELEASED;
+        data->point.x = last_x;
+        data->point.y = last_y;
     }
-    //ESP_LOGI(TAG, "Touch (%u) : [%3u, %3u] - 0x%02X", indev_data.pressed, data->point.x, data->point.y, indev_data.btn_val);
+    //ESP_LOGI(TAG, "Touch (%u) : [%3d, %3d]", indev_data.pressed, data->point.x, data->point.y);
 }
 
 /**
