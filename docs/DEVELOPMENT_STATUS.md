@@ -90,3 +90,28 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - ESP-IDF 5.4.4 build and COM21 flash passed; serial boot confirmed PSRAM initialization and Wi-Fi reconnection.
 - The user physically verified changing the interval, saving, leaving/reopening Settings, and persistence after reboot. The UI control is verified; the broader Settings milestone remains open until refresh scheduling is consistently applied by the modules.
 - COM22 remains untouched.
+
+
+## Full module audit and automatic refresh integration (2026-10-29)
+
+- Audited the current home-screen module dispatch, settings schema, HTTP service, and feature implementations against the roadmap. The five current core modules are Web Reader, Network Monitor/Wi-Fi Manager, Raspberry Pi Monitor, GitHub Monitor, and F1. The Information feed is not implemented and is now tracked as an optional future module rather than being described as complete.
+- Found that `refresh_seconds` was persisted and displayed in Settings but was not consumed by module scheduling. Added LVGL timers for Network Monitor, Raspberry Pi Monitor, GitHub, and F1. Timers perform work only while their corresponding module is active; returning Home pauses module refresh activity. Saving a new interval updates existing timers.
+- Network and Raspberry Pi checks use the selected 1–60 minute interval. GitHub and OpenF1 use a five-minute minimum to avoid overly frequent public API requests. The Web Reader remains user-triggered.
+- Updated home-screen descriptions to match current capabilities and rewrote `docs/ROADMAP.md` to distinguish implemented features, remaining physical checks, and future enhancements.
+- Reviewed HTTP service bounds: 10-second timeout, 32 KiB maximum response body, certificate-bundle TLS verification, and a maximum of three redirects.
+- Initial ESP-IDF 5.4.4 build after the timer integration passed; app image was approximately 0x21A570 bytes with 47% of the 4 MiB app partition free. A final build is being run after the documentation/UI-label updates.
+- Physical verification of automatic refresh timing is still required. COM22 remains untouched.
+
+## Future input and configuration architecture (2026-10-29)
+
+- Added phone-based local configuration, BLE HID keyboard, and USB keyboard-dongle investigation to the future roadmap.
+- The D1 is a dual-MCU ESP32-S3/RP2040 board. The published Seeed system diagram shows the external USB-C connectors routed through an onboard USB 2.0 hub toward the RP2040 and USB-TTL path; direct ESP32-S3 USB-host access is not assumed.
+- BLE keyboard support is technically plausible because the ESP32-S3 supports BLE and ESP-IDF includes a Bluetooth HID Host example. USB-dongle support needs board-routing confirmation and may be better implemented as RP2040 USB HID host input forwarded over the existing inter-MCU UART.
+- Phone configuration is planned as a local web interface with an on-device pairing code and no unauthenticated internet exposure.
+
+
+## Final automatic-refresh build and COM21 flash (2026-10-29)
+
+- Final ESP-IDF 5.4.4 build after the timer integration and home-screen description updates passed. App image size: 0x21A580 bytes, leaving 47% of the 4 MiB app partition free.
+- Re-identified COM21 as the ESP32-S3 (MAC 74:4D:BD:95:B0:28), flashed only COM21, and verified image hashes. Boot logs confirmed the SenseCAP_Indicator board, 8 MB PSRAM memory test, Wi-Fi association, and DHCP success. No startup stack-overflow or crash appeared in the captured boot sequence.
+- Physical verification of automatic refresh timing and interaction behavior is still required. COM22 remains untouched.

@@ -1,52 +1,114 @@
 # D1-Dash Roadmap
 
-## Phase 0 — Recoverable project baseline
+Last reviewed: 2026-10-29
 
-- [x] Put the current SenseCAP Indicator source tree under the D1-Dash repository.
-- [x] Document target, architecture, build steps and known environment limits.
-- [x] Provision ESP-IDF 5.4.4 on the replacement computer.
-- [x] Run a clean ESP32-S3 build; the recovered BSP compatibility changes compile successfully.
-- [x] Identify COM21 conclusively with esptool as the Indicator D1 ESP32-S3 (8 MB flash, 8 MB PSRAM); leave COM22 untouched.
-- [x] Flash the ESP32-S3 through COM21 and confirm the SenseCAP Indicator board initializes and joins Wi-Fi.
-- [x] Verify touchscreen navigation into F1 on the physical display; the user confirmed upcoming races load and Refresh/Back Home controls appear.
-- [ ] Verify Back Home, repeated F1 entry and Refresh by touch.
+This roadmap separates features already implemented from checks that still require the physical device. The five home-screen modules are the current core product; optional feeds and alternate input/configuration methods are future expansions.
 
-## Phase 1 — Stable home and navigation
+## 1. Platform and navigation
 
-- [ ] Confirm the home screen fits the D1 display and supports touch.
-- [ ] Add a consistent back/navigation pattern for all modules.
-- [x] Keep the F1 network request off the UI task.
-- [ ] Review all other module operations for UI-task blocking.
-- [ ] Verify settings and navigation survive screen changes.
+- [x] Recover the SenseCAP Indicator D1 project baseline and document the ESP32-S3/RP2040 architecture.
+- [x] Build with ESP-IDF 5.4.4 for ESP32-S3.
+- [x] Verify the Indicator D1 on COM21 (8 MB flash and 8 MB PSRAM); COM22 is not used.
+- [x] Initialize the display, touch input, Wi-Fi, and persistent settings.
+- [x] Resolve touch coordinate inversion and the LVGL screen-lifecycle issues found during testing.
+- [x] Provide a consistent Home action on the implemented modules.
+- [x] Physically verify core tile navigation, F1 entry/exit, repeated F1 entry, refresh, Wi-Fi Manager navigation, and Settings access.
+- [ ] Run a final full-module navigation and soak test on the physical display.
 
-## Phase 2 — Core modules
+## 2. Core modules
 
-- [x] Network Monitor: Wi-Fi state, IP, RSSI and basic diagnostics.
-- [ ] Settings: saved endpoints, refresh intervals and user preferences.
-- [x] Settings: persistent 1–60 minute default module refresh-interval control; physically verified save, reopen and reboot persistence.
-- [ ] Raspberry Pi Monitor: configurable JSON endpoint and clear offline state.
-- [x] GitHub Monitor: fetch latest workflow status and show clear HTTP 403/429 rate-limit/access messages.
-- [ ] GitHub Monitor: verify workflow status and rate-limit messaging on the physical device.
-- [x] F1: basic schedule screen, OpenF1 request task, loading/error states, and recent-race fallback.
-- [x] Validate the OpenF1 schedule request and display on the physical device.
-- [x] F1: request the latest completed race result and show the top three driver acronyms when OpenF1 data is available.
-- [x] F1: verify latest race podium display on the physical device.
-- [ ] F1: verify offline-cache fallback and repeated navigation by touch.
-- [x] F1: add a bounded 900-byte RAM schedule cache with a 30-minute freshness limit for request-failure fallback.
-- [ ] Information: configurable weather/news/NASA feeds.
+### Network Monitor and Wi-Fi Manager
+- [x] Show Wi-Fi connection state, SSID, signal strength, IP address, and gateway.
+- [x] Scan nearby 2.4 GHz networks and show signal/security information.
+- [x] Join a selected network using the on-screen password keyboard.
+- [x] Handle scan/connect results through the view event system.
+- [x] User physically verified the Wi-Fi Manager workflow and navigation.
 
-## Phase 3 — Web Reader
+### Settings
+- [x] Persist settings in NVS with schema validation and migration.
+- [x] Configure display brightness and screen timeout.
+- [x] Configure browser home URL, GitHub owner/repository, and Raspberry Pi status endpoint.
+- [x] Persist the default module refresh interval (1–60 minutes).
+- [x] Apply refresh timers to Network Monitor, Raspberry Pi Monitor, GitHub, and F1; timers pause their work while their module is not active.
+- [x] Reconfigure existing timers when the saved interval changes.
+- [x] User physically verified saving, reopening, and reboot persistence of the refresh interval.
+- [ ] Physically verify automatic refresh timing and confirm it does not interfere with touch/navigation.
 
-- [x] Address entry and HTTP(S) host validation (reject empty hosts, whitespace/control characters, userinfo and backslashes).
-- [ ] Robust URL normalization and persistent bookmarks.
-- [ ] HTTP/HTTPS retrieval with TLS verification and strict response limits.
-- [ ] Text-first HTML parsing, links and basic navigation.
-- [ ] History and bookmarks stored persistently.
-- [ ] Later: limited images/CSS only if memory and performance allow.
+Note: public API modules (GitHub and OpenF1) enforce a five-minute minimum polling interval to reduce unnecessary requests and avoid excessive API use. Local network and Raspberry Pi checks use the selected interval. The Web Reader remains user-triggered rather than automatically reloading the current page.
 
-## Phase 4 — Reliability and documentation
+### Raspberry Pi Monitor
+- [x] Read a configurable JSON status endpoint from a worker task.
+- [x] Parse hostname, CPU, memory, disk, temperature, and uptime.
+- [x] Show clear loading, success, and failure states.
+- [x] Increase the HTTPS/JSON worker stack after diagnosing the earlier task-stack issue.
+- [x] User previously confirmed the Raspberry Pi Monitor works.
+- [ ] Include it in the final repeated-entry/offline soak test.
 
-- [ ] Add module-level error and loading states.
-- [ ] Document API providers, rate limits and privacy implications.
-- [ ] Add reproducible build notes and troubleshooting.
-- [ ] Record tested ESP-IDF version and firmware version with each release.
+### GitHub Monitor
+- [x] Read configured repository metrics.
+- [x] Show the latest GitHub Actions workflow run when available.
+- [x] Display explicit HTTP 403/429 rate-limit/access messaging and no-runs states.
+- [x] Move HTTPS and JSON work off the LVGL task.
+- [x] Fix the stale-screen lifecycle bug and increase the worker stack after diagnosing black-screen failures.
+- [x] User confirmed the module opens after the crash fix.
+- [ ] Physically verify the current workflow/no-runs and rate-limit states on the device.
+
+### Formula 1
+- [x] Fetch race sessions from OpenF1 in a worker task.
+- [x] Display upcoming races or recent races when the season has no future sessions.
+- [x] Display the latest completed race podium when data is available.
+- [x] Keep a bounded 900-byte RAM cache for up to 30 minutes for request-failure fallback.
+- [x] User physically verified the schedule and latest-race podium display.
+- [ ] Physically verify offline-cache fallback and repeated refresh/navigation on the current firmware.
+
+## 3. Web Reader
+
+- [x] Accept HTTP and HTTPS URLs and validate the scheme, host, port, and authority.
+- [x] Reject malformed hosts, whitespace/control characters, userinfo, and backslashes.
+- [x] Fetch pages using TLS certificate verification, bounded timeouts, bounded response size, and limited redirects.
+- [x] Extract readable text from static HTML and plain-text responses.
+- [x] Provide session-only Back/Forward history.
+- [x] User confirmed readable page text and malformed-URL rejection.
+- [ ] Final physical test of long pages, redirects, HTTP errors, and repeated navigation.
+
+Future enhancements (not part of the current implemented reader): persistent bookmarks/history, clickable links, stronger URL canonicalization, and optional limited image/CSS support. Pages that depend on JavaScript will not render like a full desktop browser.
+
+## 4. Reliability and release readiness
+
+- [x] Keep network fetches off the LVGL/UI task for Pi, GitHub, F1, and Web Reader.
+- [x] Bound HTTP response size and request timeout; verify TLS certificates.
+- [x] Add module loading/error states and task-creation failure handling.
+- [x] Document the Windows/ESP-IDF build process.
+- [ ] Complete final physical checks listed above.
+- [ ] Review memory/stack behavior during repeated module switching and prolonged operation.
+- [ ] Record a release version and tested firmware build details.
+
+## 5. Future expansion: phone configuration and external keyboards
+
+These are planned follow-on features, not implemented in the current firmware.
+
+### Phone-based configuration
+- [ ] Add a small configuration website served by the D1 over the local Wi-Fi network.
+- [ ] Allow a phone browser to edit the same settings as the touchscreen.
+- [ ] Consider a temporary setup access point for first-time Wi-Fi provisioning.
+- [ ] Require a short-lived pairing code shown on the D1 display; keep configuration local and do not expose an unauthenticated admin page to the internet.
+- [ ] Validate input and save through the existing NVS settings layer.
+
+### BLE keyboard
+- [ ] Add BLE HID host support so a standard Bluetooth LE keyboard can be paired.
+- [ ] Route keyboard events into LVGL text fields and navigation.
+- [ ] Add a pairing screen, connection status, and reconnect behavior.
+- [ ] Verify coexistence with Wi-Fi and the touchscreen.
+
+### USB keyboard dongle
+- [ ] Inspect the exact D1 USB routing and available port power before selecting an implementation.
+- [ ] Evaluate using the RP2040 as a USB HID host and forwarding key events to the ESP32-S3 over the existing inter-MCU UART.
+- [ ] Only pursue direct ESP32-S3 USB-host support if the board exposes the required USB-OTG data lines and power path; do not assume the external USB-C connectors are wired directly to the ESP32-S3 USB peripheral.
+
+Hardware feasibility notes: the D1 is a dual-MCU ESP32-S3/RP2040 design. Its published system diagram shows the two USB-C connectors routed through an onboard USB 2.0 hub to the RP2040 and USB-TTL path. The ESP32-S3 supports BLE, and ESP-IDF provides a Bluetooth HID Host example. USB HID host support exists for ESP32-S3 in ESP-IDF, but requires a board with USB-OTG host wiring; the D1 connector routing must be confirmed before implementation.
+
+## 6. Optional future modules
+
+- [ ] Information dashboard: configurable weather, news, and NASA feeds.
+- [ ] Expand Raspberry Pi Monitor to multiple configured devices if needed.
+- [ ] Expand GitHub Monitor to multiple repositories if needed.

@@ -47,6 +47,10 @@ static lv_obj_t *pi_page;
 static lv_obj_t *pi_status;
 static lv_obj_t *pi_metrics;
 static bool pi_request_active;
+static lv_timer_t *network_refresh_timer;
+static lv_timer_t *pi_refresh_timer;
+static lv_timer_t *github_refresh_timer;
+static lv_timer_t *f1_refresh_timer;
 #define TECH_EVENT_PI_RESULT 0x4001
 #define TECH_EVENT_WEB_RESULT 0x4002
 #define TECH_EVENT_GITHUB_RESULT 0x4003
@@ -139,15 +143,21 @@ static void f1_result_event(void *handler_args, esp_event_base_t base,
 static void settings_brightness_event(lv_event_t *event);
 static void settings_timeout_event(lv_event_t *event);
 static void settings_refresh_event(lv_event_t *event);
+static uint32_t module_refresh_period_ms(bool external_api);
+static void module_refresh_timers_update(void);
+static void network_auto_refresh(lv_timer_t *timer);
+static void pi_auto_refresh(lv_timer_t *timer);
+static void github_auto_refresh(lv_timer_t *timer);
+static void f1_auto_refresh(lv_timer_t *timer);
 ESP_EVENT_DECLARE_BASE(VIEW_EVENT_BASE);
 extern esp_event_loop_handle_t view_event_handle;
 static const char *module_names[] = {
     "WEB READER", "NETWORK MONITOR", "PI MONITOR", "GITHUB API", "F1 API"
 };
 static const char *module_info[] = {
-    "Articles and saved pages", "Wi-Fi, signal and connectivity",
-    "Raspberry Pi health and services", "Repositories and activity",
-    "Race schedule and live timing"
+    "Text-first HTTP(S) page reader", "Wi-Fi status and connection manager",
+    "Configured Raspberry Pi metrics", "Repository metrics and Actions status",
+    "Race calendar and latest podium"
 };
 static const uint32_t module_accent[] = {
     0x42D6C3, 0x55A8FF, 0xB28BFF, 0xF2A65A, 0xFF6685
@@ -369,6 +379,10 @@ static void open_network_page(void)
     active_page = network_page;
     network_refresh();
     lv_scr_load(network_page);
+    if (network_refresh_timer == NULL) {
+        network_refresh_timer = lv_timer_create(network_auto_refresh,
+            module_refresh_period_ms(false), NULL);
+    }
 }
 
 static void wifi_manager_back_event(lv_event_t *event)
@@ -838,6 +852,10 @@ static void open_pi_page(void)
     }
     active_page = pi_page;
     lv_scr_load(pi_page);
+    if (pi_refresh_timer == NULL) {
+        pi_refresh_timer = lv_timer_create(pi_auto_refresh,
+            module_refresh_period_ms(false), NULL);
+    }
     pi_refresh_event(NULL);
 }
 
@@ -1489,6 +1507,10 @@ static void open_github_page(void)
     }
     active_page = github_page;
     lv_scr_load(github_page);
+    if (github_refresh_timer == NULL) {
+        github_refresh_timer = lv_timer_create(github_auto_refresh,
+            module_refresh_period_ms(true), NULL);
+    }
     github_refresh_event(NULL);
 }
 
@@ -1847,6 +1869,10 @@ static void open_f1_page(void)
     active_page = f1_page;
     lv_obj_move_foreground(f1_page);
     lv_obj_clear_flag(f1_page, LV_OBJ_FLAG_HIDDEN);
+    if (f1_refresh_timer == NULL) {
+        f1_refresh_timer = lv_timer_create(f1_auto_refresh,
+            module_refresh_period_ms(true), NULL);
+    }
     f1_refresh_event(NULL);
 }
 
@@ -2036,6 +2062,64 @@ static void show_home(lv_event_t *event)
     active_page = NULL;
 }
 
+static uint32_t module_refresh_period_ms(bool external_api)
+{
+    tech_settings_t settings;
+    uint32_t seconds = 300;
+    if (tech_settings_get(&settings) == ESP_OK && settings.refresh_seconds >= 60) {
+        seconds = settings.refresh_seconds;
+    }
+    /* Keep public API polling conservative even if the user selects 1 minute. */
+    if (external_api && seconds < 300) seconds = 300;
+    return seconds * 1000U;
+}
+
+static void module_refresh_timers_update(void)
+{
+    uint32_t local_period = module_refresh_period_ms(false);
+    uint32_t api_period = module_refresh_period_ms(true);
+    if (network_refresh_timer != NULL) {
+        lv_timer_set_period(network_refresh_timer, local_period);
+        lv_timer_reset(network_refresh_timer);
+    }
+    if (pi_refresh_timer != NULL) {
+        lv_timer_set_period(pi_refresh_timer, local_period);
+        lv_timer_reset(pi_refresh_timer);
+    }
+    if (github_refresh_timer != NULL) {
+        lv_timer_set_period(github_refresh_timer, api_period);
+        lv_timer_reset(github_refresh_timer);
+    }
+    if (f1_refresh_timer != NULL) {
+        lv_timer_set_period(f1_refresh_timer, api_period);
+        lv_timer_reset(f1_refresh_timer);
+    }
+}
+
+static void network_auto_refresh(lv_timer_t *timer)
+{
+    (void)timer;
+    if (active_page == network_page && network_page != NULL) network_refresh();
+}
+
+static void pi_auto_refresh(lv_timer_t *timer)
+{
+    (void)timer;
+    if (active_page == pi_page && pi_page != NULL) pi_refresh_event(NULL);
+}
+
+static void github_auto_refresh(lv_timer_t *timer)
+{
+    (void)timer;
+    if (active_page == github_page && github_page != NULL) github_refresh_event(NULL);
+}
+
+static void f1_auto_refresh(lv_timer_t *timer)
+{
+    (void)timer;
+    if (active_page == f1_page && f1_page != NULL) f1_refresh_event(NULL);
+}
+
 static lv_obj_t *make_label(lv_obj_t *parent, const char *text, int size, uint32_t color)
 {
     lv_obj_t *label = lv_label_create(parent);
@@ -2141,6 +2225,7 @@ static void settings_save_event(lv_event_t *event)
 
     esp_err_t err = tech_settings_set(&settings);
     if (err == ESP_OK) {
+        module_refresh_timers_update();
         struct view_data_display display = {
             .brightness = settings.brightness,
             .sleep_mode_en = settings.screen_timeout_minutes > 0,
