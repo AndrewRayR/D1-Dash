@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include "esp_err.h"
 
-#define TECH_HTTP_MAX_BODY 8192
+#define TECH_HTTP_MAX_BODY 32768
 
 typedef struct {
     int status_code;

@@ -635,12 +635,16 @@ static void web_fetch_task(void *arg)
         strlcpy(result.message, "Not enough memory to load page", sizeof(result.message));
         goto finished;
     }
+    ESP_LOGI("web-reader", "Fetching %s", result.url);
     esp_err_t err = tech_http_get(result.url, "text/html,text/plain;q=0.9,*/*;q=0.5", response);
     if (err != ESP_OK) {
+        ESP_LOGW("web-reader", "HTTP fetch failed: %s", esp_err_to_name(err));
         free(response);
-        strlcpy(result.message, "Request failed; check URL and Wi-Fi", sizeof(result.message));
+        strlcpy(result.message, "Request failed: host, TLS, or network error", sizeof(result.message));
         goto finished;
     }
+    ESP_LOGI("web-reader", "HTTP %d, received %u bytes",
+             response->status_code, (unsigned)response->body_length);
     if (response->status_code < 200 || response->status_code >= 300) {
         snprintf(result.message, sizeof(result.message), "Server returned HTTP %d", response->status_code);
         free(response);
@@ -649,9 +653,11 @@ static void web_fetch_task(void *arg)
     web_extract_text(response->body, result.text, sizeof(result.text));
     free(response);
     if (result.text[0] == '\0') {
-        strlcpy(result.message, "Page had no readable text", sizeof(result.message));
+        ESP_LOGW("web-reader", "No static readable text extracted from response");
+        strlcpy(result.message, "No static page text (site may require JavaScript)", sizeof(result.message));
         goto finished;
     }
+    ESP_LOGI("web-reader", "Extracted %u characters", (unsigned)strlen(result.text));
     result.ok = true;
 
 finished:
@@ -663,27 +669,94 @@ finished:
 
 static bool web_url_valid(const char *url)
 {
-    if (url == NULL) return false;
-    const char *authority = NULL;
+    if (url == NULL || url[0] == '\0') return false;
+
+    const char *authority;
     if (strncmp(url, "https://", 8) == 0) authority = url + 8;
     else if (strncmp(url, "http://", 7) == 0) authority = url + 7;
     else return false;
 
-    if (*authority == '\0' || *authority == '/' || *authority == '?' ||
-        *authority == '#') return false;
     const char *end = authority;
     while (*end && *end != '/' && *end != '?' && *end != '#') {
         unsigned char ch = (unsigned char)*end;
         if (ch <= 0x20 || ch >= 0x7f || ch == '\\' || ch == '@') return false;
         end++;
     }
-    return end > authority;
+    if (end == authority || (size_t)(end - authority) >= 256) return false;
+
+    char host[254];
+    size_t host_len = 0;
+    const char *port_text = NULL;
+    if (*authority == '[') {
+        const char *close = memchr(authority, ']', (size_t)(end - authority));
+        if (close == NULL || close == authority + 1) return false;
+        for (const char *p = authority + 1; p < close; p++) {
+            char c = *p;
+            if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+                  (c >= 'A' && c <= 'F') || c == ':' || c == '.')) return false;
+        }
+        host_len = (size_t)(close - authority - 1);
+        if (close + 1 < end) {
+            if (close[1] != ':') return false;
+            port_text = close + 2;
+        } else if (close + 1 != end) return false;
+    } else {
+        const char *colon = NULL;
+        for (const char *p = authority; p < end; p++) {
+            if (*p == ':') {
+                if (colon != NULL) return false;
+                colon = p;
+            }
+        }
+        const char *host_end = colon != NULL ? colon : end;
+        host_len = (size_t)(host_end - authority);
+        if (colon != NULL) port_text = colon + 1;
+        if (host_len == 0 || host_len > 253) return false;
+        memcpy(host, authority, host_len);
+        host[host_len] = '\0';
+
+        /* Accept localhost and dotted hostnames/IPs; reject malformed DNS labels. */
+        if (strcmp(host, "localhost") != 0) {
+            if (strchr(host, '.') == NULL) return false;
+            const char *label = host;
+            for (const char *p = host; ; p++) {
+                if (*p == '.' || *p == '\0') {
+                    size_t label_len = (size_t)(p - label);
+                    if (label_len == 0 || label_len > 63 ||
+                        label[0] == '-' || label[label_len - 1] == '-') return false;
+                    if (*p == '\0') break;
+                    label = p + 1;
+                } else if (!((*p >= 'a' && *p <= 'z') ||
+                             (*p >= 'A' && *p <= 'Z') ||
+                             (*p >= '0' && *p <= '9') || *p == '-')) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    if (port_text != NULL) {
+        if (port_text >= end) return false;
+        unsigned long port = 0;
+        for (const char *p = port_text; p < end; p++) {
+            if (*p < '0' || *p > '9') return false;
+            port = port * 10 + (unsigned)(*p - '0');
+            if (port > 65535) return false;
+        }
+        if (port == 0) return false;
+    }
+    return host_len > 0;
 }
 
 static void web_start_fetch(const char *url, bool add_history)
 {
-    if (web_request_active || !web_url_valid(url)) {
-        lv_label_set_text(web_status, "Enter a valid HTTP(S) URL with a host");
+    if (web_request_active) {
+        lv_label_set_text(web_status, "A page is already loading");
+        return;
+    }
+    if (!web_url_valid(url)) {
+        lv_label_set_text(web_status, "Invalid URL: use http(s)://hostname");
+        lv_label_set_text(web_content, "Check the scheme, hostname, and optional port, then try again.");
         return;
     }
     web_request_t *request = calloc(1, sizeof(*request));
