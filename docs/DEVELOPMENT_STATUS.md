@@ -67,3 +67,9 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Made the settings form vertically scrollable and resize it to the visible area when the on-screen keyboard opens, then scroll the selected text field into view.
 - The keyboard close/cancel and Save actions now hide the keyboard, restore the full form height, and return the form to its top position.
 - `git diff --check` and ESP-IDF 5.4.4 build passed. The updated firmware was flashed only to verified COM21; esptool verified all written image hashes and reset the board. The user physically tested Settings after flashing and confirmed the test passed.
+
+## Raspberry Pi Monitor and Web Reader task stacks (2026-10-28)
+
+- Increased the `pi_status` task stack from 6,144 to 12,288 bytes to provide headroom for HTTPS/TLS and response parsing. Commit `ff9dfa9` was pushed to `origin/main`, and the firmware was successfully flashed to COM21 with image hash verification and hard reset.
+- Increased the `web_reader` task stack from 6,144 to 12,288 bytes for the same HTTPS/TLS and response-processing risk. ESP-IDF 5.4.4 build passed, and this firmware was flashed to COM21 with image hash verification and hard reset.
+- Physical validation of Raspberry Pi Monitor and Web Reader on this newest firmware is still pending; verify successful requests, invalid URLs, back navigation, and repeated entry/exit before marking these paths hardware-verified.

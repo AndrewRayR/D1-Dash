@@ -696,7 +696,8 @@ static void web_start_fetch(const char *url, bool add_history)
     web_request_active = true;
     lv_label_set_text(web_status, "LOADING...");
     lv_label_set_text(web_content, "Fetching page text");
-    if (xTaskCreate(web_fetch_task, "web_reader", 6144, request, 4, NULL) != pdPASS) {
+    /* HTTPS/TLS and response processing can exceed the original 6 KiB stack. */
+    if (xTaskCreate(web_fetch_task, "web_reader", 12288, request, 4, NULL) != pdPASS) {
         web_request_active = false;
         free(request);
         lv_label_set_text(web_status, "Could not start page request");
