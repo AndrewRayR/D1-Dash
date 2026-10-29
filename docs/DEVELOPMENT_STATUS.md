@@ -34,15 +34,13 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - GitHub Monitor now requests the latest Actions workflow run after fetching repository metrics, and reports clear rate-limit/access messaging for HTTP 403 or 429. The public D1-Dash repository currently returns zero workflow runs in the validation query, so the UI should show a no-runs state rather than a fabricated status. The feature builds and is flashed to verified COM21; the new workflow UI still needs physical verification.
 - Web Reader now validates HTTP(S) scheme and requires a nonempty host; it rejects whitespace/control characters, backslashes, and userinfo in the authority before starting a network task. This change builds successfully and was flashed to COM21; malformed-URL behavior still needs touch verification.
 - Touch input diagnosis: `components/bsp/src/indev/indev_tp.c` already applies the configured board coordinate swap/mirroring, so the duplicate axis inversion in `main/lv_port.c` was removed. The user confirmed the correct home tile then opened, but taps on the destination page still did not work. A second bug was found in `indev_get_major_value()`: it could leave output untouched after a failed touch-I2C read while still returning `ESP_OK`. The BSP now propagates read failures to LVGL rather than claiming success, and the LVGL callback releases safely on errors. Transition-only press/release logs were added to help distinguish missing touch samples from UI event problems. Build passes; this diagnostic firmware needs physical verification.
-- Touch calibration on the physical display recorded center near (230,240), physical top-left near (458,444), and physical bottom-right near (43,44). This establishes that both reported axes are inverted relative to screen position. `main/lv_port.c` now applies the measured X/Y inversion after the BSP read. The corrected firmware built successfully and was flashed to COM21 with esptool hash verification; physical tap behavior still needs confirmation.
+- Touch calibration on the physical display recorded center near (230,240), physical top-left near (458,444), and physical bottom-right near (43,44). This establishes that both reported axes are inverted relative to screen position. `main/lv_port.c` now applies the measured X/Y inversion after the BSP read. The corrected firmware built successfully and was flashed to COM21 with esptool hash verification. Physical verification passed: the user confirmed the intended tile opens correctly and Back returns home; the F1 schedule loads, Refresh works without freezing, Back Home works, and F1 can be reopened successfully.
 - Latest clean ESP-IDF 5.4.4 build after the GitHub workflow update: PASS, exit code 0; generated `build/indicator_basis.bin`.
 - Latest firmware binary size: `0x219000` bytes; app partition is `0x400000` bytes with 48% free. The GitHub workflow-enabled firmware was flashed successfully to verified COM21; esptool verified image hashes and hard-reset the board. The new GitHub workflow view and F1 offline-cache behavior still need physical verification. COM22 remains untouched.
 - The two renamed Wi-Fi config options were updated in `sdkconfig.defaults`; reconfigure/build completed without the previous migration warnings.
 
 ## Next actions
 
-1. Verify Back Home returns to the home screen and that reopening F1 / pressing Refresh works repeatedly.
-2. Confirm the other modules and settings/navigation by touch.
-3. Physically verify GitHub latest workflow status and the F1 offline-cache fallback.
-4. Verify Back Home, repeated F1 entry, Refresh, and other module navigation by touch.
-5. Continue reliability work and the remaining modules.
+1. Confirm the other modules and settings/navigation by touch.
+2. Physically verify GitHub latest workflow status and the F1 offline-cache fallback.
+3. Continue reliability work and the remaining modules.
