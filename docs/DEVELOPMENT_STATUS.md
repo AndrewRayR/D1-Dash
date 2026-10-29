@@ -53,3 +53,11 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Root cause identified in `show_home()`: GitHub Monitor's `github_page` is cached in a static pointer, but unlike the other cached pages it was omitted from the persistent-page exclusions before `lv_obj_del_async(active_page)`. Returning home could delete the page while leaving `github_page` non-NULL; opening it again then attempted to load a deleted LVGL screen.
 - Fix: exclude `github_page` from `show_home()`'s deletion condition, matching the lifecycle of the other cached screens.
 - Rebuild passed; firmware flashed to COM21 with esptool image hash verification and hard reset. COM22 remains untouched. Physical retest of GitHub Monitor, Back Home, and repeated entry is still required.
+
+## GitHub Monitor task stack overflow (2026-10-28)
+
+- Reproduced the black-screen failure by opening GitHub Monitor and captured the serial output on COM21.
+- Confirmed ESP-IDF reported `A stack overflow in task github_repo has been detected` and halted the CPU.
+- Increased the `github_repo` task stack in `main/tech_terminal_ui.c` from 6,144 to 12,288 bytes to accommodate HTTPS/TLS and JSON parsing.
+- `idf.py build` succeeded with ESP-IDF v5.4.4. The firmware was flashed only to the Indicator D1 on COM21; esptool verified the written image hash and the device rebooted.
+- Hardware validation of opening GitHub Monitor with this change is pending. Keep this fix provisional until the screen and serial log are checked after reproduction.

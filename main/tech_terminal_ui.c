@@ -1017,7 +1017,8 @@ static void github_refresh_event(lv_event_t *event)
     github_request_active = true;
     lv_label_set_text(github_status, "LOADING REPOSITORY...");
     lv_label_set_text(github_details, "Contacting api.github.com");
-    if (xTaskCreate(github_fetch_task, "github_repo", 6144, NULL, 4, NULL) != pdPASS) {
+    /* HTTPS/TLS plus cJSON parsing needs more than the original 6 KiB stack. */
+    if (xTaskCreate(github_fetch_task, "github_repo", 12288, NULL, 4, NULL) != pdPASS) {
         github_request_active = false;
         lv_label_set_text(github_status, "COULD NOT START REQUEST");
     }
