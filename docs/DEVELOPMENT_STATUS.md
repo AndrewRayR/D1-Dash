@@ -81,3 +81,12 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Wi-Fi scan and connection events are handled through the existing view event system. The stock Wi-Fi list handler ignores scan results while the Tech Terminal Wi-Fi Manager is the active screen.
 - ESP-IDF 5.4.4 build and COM21 firmware flash succeeded. The user physically verified the Wi-Fi Manager workflow, including network list, password dialog/keyboard, cancel/reopen, and return/re-entry navigation.
 - COM22 remains untouched.
+
+
+## Settings refresh-interval control (2026-10-29)
+
+- Added a touchscreen slider for the default module refresh interval, adjustable from 1 to 60 minutes. The selected value is saved through the existing versioned settings/NVS path as `refresh_seconds`.
+- Expanded the scrollable settings form to accommodate the control while retaining the existing brightness, screen-timeout and endpoint fields.
+- ESP-IDF 5.4.4 build and COM21 flash passed; serial boot confirmed PSRAM initialization and Wi-Fi reconnection.
+- The user physically verified changing the interval, saving, leaving/reopening Settings, and persistence after reboot. The UI control is verified; the broader Settings milestone remains open until refresh scheduling is consistently applied by the modules.
+- COM22 remains untouched.

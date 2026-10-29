@@ -26,6 +26,8 @@ static lv_obj_t *brightness_slider;
 static lv_obj_t *brightness_value;
 static lv_obj_t *timeout_slider;
 static lv_obj_t *timeout_value;
+static lv_obj_t *refresh_slider;
+static lv_obj_t *refresh_value;
 static lv_obj_t *network_page;
 static lv_obj_t *network_ssid;
 static lv_obj_t *network_signal;
@@ -136,6 +138,7 @@ static void f1_result_event(void *handler_args, esp_event_base_t base,
                             int32_t id, void *event_data);
 static void settings_brightness_event(lv_event_t *event);
 static void settings_timeout_event(lv_event_t *event);
+static void settings_refresh_event(lv_event_t *event);
 ESP_EVENT_DECLARE_BASE(VIEW_EVENT_BASE);
 extern esp_event_loop_handle_t view_event_handle;
 static const char *module_names[] = {
@@ -1933,7 +1936,7 @@ static void open_settings(lv_event_t *event)
 
     lv_obj_t *form = lv_obj_create(page);
     settings_form = form;
-    lv_obj_set_size(settings_form, 448, 390);
+    lv_obj_set_size(settings_form, 448, 416);
     lv_obj_align(settings_form, LV_ALIGN_TOP_MID, 0, 64);
     lv_obj_set_style_bg_opa(settings_form, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(settings_form, 0, 0);
@@ -1971,6 +1974,21 @@ static void open_settings(lv_event_t *event)
         lv_label_set_text_fmt(timeout_value, "%u min", settings.screen_timeout_minutes);
     }
 
+    lv_obj_t *refresh_label = make_label(form, "Default module refresh interval", 12, 0x91A3B4);
+    lv_obj_set_pos(refresh_label, 4, 104);
+    refresh_slider = lv_slider_create(form);
+    lv_obj_set_size(refresh_slider, 330, 12);
+    lv_obj_set_pos(refresh_slider, 4, 130);
+    lv_slider_set_range(refresh_slider, 1, 60);
+    uint16_t refresh_minutes = settings.refresh_seconds / 60;
+    if (refresh_minutes < 1) refresh_minutes = 1;
+    if (refresh_minutes > 60) refresh_minutes = 60;
+    lv_slider_set_value(refresh_slider, refresh_minutes, LV_ANIM_OFF);
+    lv_obj_add_event_cb(refresh_slider, settings_refresh_event, LV_EVENT_VALUE_CHANGED, NULL);
+    refresh_value = make_label(form, "", 12, 0x42D6C3);
+    lv_obj_set_pos(refresh_value, 350, 126);
+    lv_label_set_text_fmt(refresh_value, "%u min", refresh_minutes);
+
     char values[5][128] = {{0}};
     strlcpy(values[0], settings.browser_home, sizeof(values[0]));
     strlcpy(values[1], settings.github_owner, sizeof(values[1]));
@@ -1982,10 +2000,10 @@ static void open_settings(lv_event_t *event)
 
     for (int i = 0; i < 5; i++) {
         lv_obj_t *label = make_label(form, names[i], 12, 0x91A3B4);
-        lv_obj_set_pos(label, 4, 112 + i * 52);
+        lv_obj_set_pos(label, 4, 150 + i * 52);
         settings_fields[i] = lv_textarea_create(form);
         lv_obj_set_size(settings_fields[i], 424, 32);
-        lv_obj_set_pos(settings_fields[i], 4, 130 + i * 52);
+        lv_obj_set_pos(settings_fields[i], 4, 168 + i * 52);
         lv_textarea_set_one_line(settings_fields[i], true);
         lv_textarea_set_max_length(settings_fields[i], 127);
         lv_textarea_set_text(settings_fields[i], values[i]);
@@ -2046,6 +2064,13 @@ static void settings_timeout_event(lv_event_t *event)
     else lv_label_set_text_fmt(timeout_value, "%d min", minutes);
 }
 
+static void settings_refresh_event(lv_event_t *event)
+{
+    (void)event;
+    int minutes = (int)lv_slider_get_value(refresh_slider);
+    lv_label_set_text_fmt(refresh_value, "%d min", minutes);
+}
+
 static void settings_field_event(lv_event_t *event)
 {
     if (settings_keyboard == NULL || settings_form == NULL) return;
@@ -2067,7 +2092,7 @@ static void settings_hide_keyboard(void)
         lv_obj_add_flag(settings_keyboard, LV_OBJ_FLAG_HIDDEN);
     }
     if (settings_form != NULL) {
-        lv_obj_set_height(settings_form, 390);
+        lv_obj_set_height(settings_form, 416);
         lv_obj_scroll_to_y(settings_form, 0, LV_ANIM_OFF);
     }
 }
@@ -2112,6 +2137,7 @@ static void settings_save_event(lv_event_t *event)
             sizeof(settings.information_city));
     settings.brightness = (uint8_t)lv_slider_get_value(brightness_slider);
     settings.screen_timeout_minutes = (uint16_t)lv_slider_get_value(timeout_slider);
+    settings.refresh_seconds = (uint16_t)lv_slider_get_value(refresh_slider) * 60;
 
     esp_err_t err = tech_settings_set(&settings);
     if (err == ESP_OK) {

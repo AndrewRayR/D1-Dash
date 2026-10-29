@@ -23,6 +23,7 @@
 
 - [x] Network Monitor: Wi-Fi state, IP, RSSI and basic diagnostics.
 - [ ] Settings: saved endpoints, refresh intervals and user preferences.
+- [x] Settings: persistent 1–60 minute default module refresh-interval control; physically verified save, reopen and reboot persistence.
 - [ ] Raspberry Pi Monitor: configurable JSON endpoint and clear offline state.
 - [x] GitHub Monitor: fetch latest workflow status and show clear HTTP 403/429 rate-limit/access messages.
 - [ ] GitHub Monitor: verify workflow status and rate-limit messaging on the physical device.
