@@ -1640,7 +1640,8 @@ static void show_home(lv_event_t *event)
     if (f1_page != NULL) lv_obj_add_flag(f1_page, LV_OBJ_FLAG_HIDDEN);
     lv_scr_load(home);
     if (active_page != NULL && active_page != network_page &&
-        active_page != pi_page && active_page != web_page && active_page != f1_page) {
+        active_page != pi_page && active_page != web_page &&
+        active_page != github_page && active_page != f1_page) {
         lv_obj_del_async(active_page);
     }
     active_page = NULL;

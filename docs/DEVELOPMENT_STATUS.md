@@ -44,3 +44,12 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 1. Confirm the other modules and settings/navigation by touch.
 2. Physically verify GitHub latest workflow status and the F1 offline-cache fallback.
 3. Continue reliability work and the remaining modules.
+
+
+## GitHub Monitor crash investigation (2026-10-28)
+
+- After the user opened GitHub Monitor and tapped additional screen locations, the display went black and the UI stopped responding.
+- COM21 serial output captured a `LoadProhibited` Guru Meditation in `lv_scr_load_anim`, called from `open_github_page()` at `main/tech_terminal_ui.c:1121` during the `open_module()` touch event.
+- Root cause identified in `show_home()`: GitHub Monitor's `github_page` is cached in a static pointer, but unlike the other cached pages it was omitted from the persistent-page exclusions before `lv_obj_del_async(active_page)`. Returning home could delete the page while leaving `github_page` non-NULL; opening it again then attempted to load a deleted LVGL screen.
+- Fix: exclude `github_page` from `show_home()`'s deletion condition, matching the lifecycle of the other cached screens.
+- Rebuild passed; firmware flashed to COM21 with esptool image hash verification and hard reset. COM22 remains untouched. Physical retest of GitHub Monitor, Back Home, and repeated entry is still required.
