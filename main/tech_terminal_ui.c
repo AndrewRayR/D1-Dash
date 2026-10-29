@@ -19,6 +19,7 @@
 static lv_obj_t *home;
 static lv_obj_t *active_page;
 static lv_obj_t *settings_fields[5];
+static lv_obj_t *settings_form;
 static lv_obj_t *settings_keyboard;
 static lv_obj_t *settings_status;
 static lv_obj_t *brightness_slider;
@@ -135,6 +136,7 @@ static void open_settings(lv_event_t *event);
 static void configure_wifi_screen(void);
 static void settings_field_event(lv_event_t *event);
 static void settings_keyboard_event(lv_event_t *event);
+static void settings_hide_keyboard(void);
 static void settings_save_event(lv_event_t *event);
 static lv_obj_t *make_label(lv_obj_t *parent, const char *text, int size, uint32_t color);
 
@@ -1566,12 +1568,16 @@ static void open_settings(lv_event_t *event)
     lv_obj_center(save_label);
 
     lv_obj_t *form = lv_obj_create(page);
-    lv_obj_set_size(form, 448, 390);
-    lv_obj_align(form, LV_ALIGN_TOP_MID, 0, 64);
-    lv_obj_set_style_bg_opa(form, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(form, 0, 0);
-    lv_obj_set_style_pad_all(form, 4, 0);
-    lv_obj_set_style_pad_row(form, 8, 0);
+    settings_form = form;
+    lv_obj_set_size(settings_form, 448, 390);
+    lv_obj_align(settings_form, LV_ALIGN_TOP_MID, 0, 64);
+    lv_obj_set_style_bg_opa(settings_form, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(settings_form, 0, 0);
+    lv_obj_set_style_pad_all(settings_form, 4, 0);
+    lv_obj_set_style_pad_row(settings_form, 8, 0);
+    lv_obj_add_flag(settings_form, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(settings_form, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(settings_form, LV_SCROLLBAR_MODE_AUTO);
 
     lv_obj_t *brightness_label = make_label(form, "Brightness", 12, 0x91A3B4);
     lv_obj_set_pos(brightness_label, 4, 0);
@@ -1678,18 +1684,34 @@ static void settings_timeout_event(lv_event_t *event)
 
 static void settings_field_event(lv_event_t *event)
 {
-    if (settings_keyboard == NULL) return;
+    if (settings_keyboard == NULL || settings_form == NULL) return;
     lv_obj_t *field = lv_event_get_target(event);
+
+    /* Reserve the lower part of the screen for the keyboard, then scroll the
+       selected field into the remaining visible area. */
+    lv_obj_set_height(settings_form, 210);
     lv_keyboard_set_textarea(settings_keyboard, field);
     lv_obj_clear_flag(settings_keyboard, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(settings_keyboard);
+    lv_obj_scroll_to_view(field, LV_ANIM_OFF);
+}
+
+static void settings_hide_keyboard(void)
+{
+    if (settings_keyboard != NULL) {
+        lv_keyboard_set_textarea(settings_keyboard, NULL);
+        lv_obj_add_flag(settings_keyboard, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (settings_form != NULL) {
+        lv_obj_set_height(settings_form, 390);
+        lv_obj_scroll_to_y(settings_form, 0, LV_ANIM_OFF);
+    }
 }
 
 static void settings_keyboard_event(lv_event_t *event)
 {
     (void)event;
-    lv_keyboard_set_textarea(settings_keyboard, NULL);
-    lv_obj_add_flag(settings_keyboard, LV_OBJ_FLAG_HIDDEN);
+    settings_hide_keyboard();
 }
 
 static void settings_save_event(lv_event_t *event)
@@ -1742,8 +1764,5 @@ static void settings_save_event(lv_event_t *event)
                       "Saved locally on this device" : "Save failed; check storage");
     lv_obj_set_style_text_color(settings_status,
         err == ESP_OK ? lv_color_hex(0x42D6C3) : lv_color_hex(0xFF6685), 0);
-    if (settings_keyboard) {
-        lv_keyboard_set_textarea(settings_keyboard, NULL);
-        lv_obj_add_flag(settings_keyboard, LV_OBJ_FLAG_HIDDEN);
-    }
+    settings_hide_keyboard();
 }

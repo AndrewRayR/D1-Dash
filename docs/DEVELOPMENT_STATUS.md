@@ -60,4 +60,10 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Confirmed ESP-IDF reported `A stack overflow in task github_repo has been detected` and halted the CPU.
 - Increased the `github_repo` task stack in `main/tech_terminal_ui.c` from 6,144 to 12,288 bytes to accommodate HTTPS/TLS and JSON parsing.
 - `idf.py build` succeeded with ESP-IDF v5.4.4. The firmware was flashed only to the Indicator D1 on COM21; esptool verified the written image hash and the device rebooted.
-- Hardware validation of opening GitHub Monitor with this change is pending. Keep this fix provisional until the screen and serial log are checked after reproduction.
+- The user confirmed that opening GitHub Monitor works after this change, so the immediate black-screen reproduction is resolved in their hardware test. Continue monitoring for stability during refresh and repeated navigation.
+
+## Settings keyboard visibility improvement (2026-10-28)
+
+- Made the settings form vertically scrollable and resize it to the visible area when the on-screen keyboard opens, then scroll the selected text field into view.
+- The keyboard close/cancel and Save actions now hide the keyboard, restore the full form height, and return the form to its top position.
+- `git diff --check` and ESP-IDF 5.4.4 build passed. The updated firmware was flashed only to verified COM21; esptool verified all written image hashes and reset the board. Physical verification of editing the lower settings fields and saving remains pending.
