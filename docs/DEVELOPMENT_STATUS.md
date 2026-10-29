@@ -73,3 +73,11 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Increased the `pi_status` task stack from 6,144 to 12,288 bytes to provide headroom for HTTPS/TLS and response parsing. Commit `ff9dfa9` was pushed to `origin/main`, and the firmware was successfully flashed to COM21 with image hash verification and hard reset.
 - Increased the `web_reader` task stack from 6,144 to 12,288 bytes for the same HTTPS/TLS and response-processing risk. ESP-IDF 5.4.4 build passed, and this firmware was flashed to COM21 with image hash verification and hard reset.
 - Physical validation of Raspberry Pi Monitor and Web Reader on this newest firmware is still pending; verify successful requests, invalid URLs, back navigation, and repeated entry/exit before marking these paths hardware-verified.
+
+## Network Monitor and Wi-Fi Manager hardware verification (2026-10-29)
+
+- The Network Monitor is complete: it reports Wi-Fi state, IP address, signal strength (RSSI), and basic network diagnostics.
+- Added a dedicated Tech Terminal Wi-Fi Manager with nearby 2.4 GHz scan results, SSID/security/signal display, password entry, connection requests, scan refresh, and return navigation to Network Monitor.
+- Wi-Fi scan and connection events are handled through the existing view event system. The stock Wi-Fi list handler ignores scan results while the Tech Terminal Wi-Fi Manager is the active screen.
+- ESP-IDF 5.4.4 build and COM21 firmware flash succeeded. The user physically verified the Wi-Fi Manager workflow, including network list, password dialog/keyboard, cancel/reopen, and return/re-entry navigation.
+- COM22 remains untouched.

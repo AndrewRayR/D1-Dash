@@ -31,6 +31,16 @@ static lv_obj_t *network_ssid;
 static lv_obj_t *network_signal;
 static lv_obj_t *network_ip;
 static lv_obj_t *network_gateway;
+static lv_obj_t *wifi_manager_page;
+static lv_obj_t *wifi_manager_list;
+static lv_obj_t *wifi_manager_status;
+static lv_obj_t *wifi_manager_dialog;
+static lv_obj_t *wifi_manager_dialog_status;
+static lv_obj_t *wifi_manager_password;
+static lv_obj_t *wifi_manager_keyboard;
+static char wifi_manager_selected_ssid[32];
+static bool wifi_manager_selected_secure;
+static struct view_data_wifi_list wifi_manager_scan_results;
 static lv_obj_t *pi_page;
 static lv_obj_t *pi_status;
 static lv_obj_t *pi_metrics;
@@ -89,8 +99,18 @@ typedef struct {
     char details[900];
     char message[96];
 } f1_result_t;
-static void show_network(lv_event_t *event);
 static void open_wifi_manager(lv_event_t *event);
+static void wifi_manager_refresh_event(lv_event_t *event);
+static void wifi_manager_list_event(void *handler_args, esp_event_base_t base,
+                                    int32_t id, void *event_data);
+static void wifi_manager_connect_event(void *handler_args, esp_event_base_t base,
+                                       int32_t id, void *event_data);
+static void wifi_manager_select_event(lv_event_t *event);
+static void wifi_manager_join_event(lv_event_t *event);
+static void wifi_manager_cancel_event(lv_event_t *event);
+static void wifi_manager_keyboard_event(lv_event_t *event);
+static void wifi_manager_close_dialog(void);
+static void wifi_manager_open_page(void);
 static void open_pi_page(void);
 static void network_refresh_event(lv_event_t *event);
 static void pi_refresh_event(lv_event_t *event);
@@ -133,7 +153,6 @@ static const uint32_t module_accent[] = {
 static void show_home(lv_event_t *event);
 static void open_module(lv_event_t *event);
 static void open_settings(lv_event_t *event);
-static void configure_wifi_screen(void);
 static void settings_field_event(lv_event_t *event);
 static void settings_keyboard_event(lv_event_t *event);
 static void settings_hide_keyboard(void);
@@ -150,6 +169,10 @@ void tech_terminal_ui_init(void)
         VIEW_EVENT_BASE, TECH_EVENT_GITHUB_RESULT, github_result_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
         VIEW_EVENT_BASE, TECH_EVENT_F1_RESULT, f1_result_event, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
+        VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST, wifi_manager_list_event, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
+        VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT_RET, wifi_manager_connect_event, NULL));
     home = lv_obj_create(NULL);
     lv_obj_clear_flag(home, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(home, lv_color_hex(0x0B1118), 0);
@@ -241,29 +264,11 @@ void tech_terminal_ui_init(void)
     lv_obj_add_event_cb(network, open_module, LV_EVENT_CLICKED, (void *)(intptr_t)1);
     lv_obj_t *network_text = make_label(network, "NETWORK", 11, 0x55A8FF);
     lv_obj_center(network_text);
-    configure_wifi_screen();
     /* Build this screen while startup heap is available; screen creation can fail later under pressure. */
     f1_preparing = true;
     open_f1_page();
     f1_preparing = false;
     lv_scr_load(home);
-}
-
-static void configure_wifi_screen(void)
-{
-    lv_obj_set_style_bg_color(ui_screen_wifi, lv_color_hex(0x0B1118), LV_PART_MAIN);
-    lv_label_set_text(ui_wifi_title, "Network Monitor");
-    lv_obj_remove_event_cb(ui_back3, ui_event_back3);
-    lv_obj_set_style_bg_img_src(ui_back3, NULL, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_bg_color(ui_back3, lv_color_hex(0x17304A), LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_border_width(ui_back3, 0, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_set_style_radius(ui_back3, 10, LV_PART_MAIN | LV_STATE_DEFAULT);
-    lv_obj_t *home_label = lv_label_create(ui_back3);
-    lv_label_set_text(home_label, "<  NETWORK");
-    lv_obj_center(home_label);
-    lv_obj_set_style_text_color(home_label, lv_color_hex(0x55A8FF), 0);
-    lv_obj_set_style_text_font(home_label, &lv_font_montserrat_14, 0);
-    lv_obj_add_event_cb(ui_back3, show_network, LV_EVENT_CLICKED, NULL);
 }
 
 static void network_refresh(void)
@@ -363,22 +368,306 @@ static void open_network_page(void)
     lv_scr_load(network_page);
 }
 
-static void show_network(lv_event_t *event)
+static void wifi_manager_back_event(lv_event_t *event)
 {
     (void)event;
+    wifi_manager_close_dialog();
     open_network_page();
 }
 
 static void open_wifi_manager(lv_event_t *event)
 {
     (void)event;
-    lv_disp_load_scr(ui_screen_wifi);
+    wifi_manager_open_page();
 }
 
 static void network_refresh_event(lv_event_t *event)
 {
     (void)event;
     network_refresh();
+}
+
+static void wifi_manager_refresh_event(lv_event_t *event)
+{
+    (void)event;
+    if (wifi_manager_status != NULL) {
+        lv_label_set_text(wifi_manager_status, "Scanning nearby 2.4 GHz networks...");
+    }
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                      VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, portMAX_DELAY);
+}
+
+static void wifi_manager_close_dialog(void)
+{
+    lv_obj_t *dialog = wifi_manager_dialog;
+    wifi_manager_dialog = NULL;
+    wifi_manager_dialog_status = NULL;
+    wifi_manager_password = NULL;
+    wifi_manager_keyboard = NULL;
+    if (dialog != NULL) {
+        lv_obj_del(dialog);
+    }
+}
+
+static void wifi_manager_cancel_event(lv_event_t *event)
+{
+    (void)event;
+    wifi_manager_close_dialog();
+}
+
+static void wifi_manager_keyboard_event(lv_event_t *event)
+{
+    lv_event_code_t code = lv_event_get_code(event);
+    if (code == LV_EVENT_READY) {
+        wifi_manager_join_event(NULL);
+    } else if (code == LV_EVENT_CANCEL) {
+        wifi_manager_close_dialog();
+    }
+}
+
+static void wifi_manager_join_event(lv_event_t *event)
+{
+    (void)event;
+    if (wifi_manager_selected_ssid[0] == '\0') return;
+
+    struct view_data_wifi_config config = {0};
+    strlcpy(config.ssid, wifi_manager_selected_ssid, sizeof(config.ssid));
+    if (wifi_manager_selected_secure) {
+        const char *password = wifi_manager_password != NULL ?
+            lv_textarea_get_text(wifi_manager_password) : "";
+        size_t password_length = strlen(password);
+        if (password_length < 8 || password_length > sizeof(config.password) - 1) {
+            if (wifi_manager_dialog_status != NULL) {
+                lv_label_set_text(wifi_manager_dialog_status,
+                    "Enter 8-63 characters for this network");
+            }
+            return;
+        }
+        config.have_password = true;
+        memcpy(config.password, password, password_length);
+    } else {
+        config.have_password = false;
+    }
+
+    wifi_manager_close_dialog();
+    if (wifi_manager_status != NULL) {
+        lv_label_set_text(wifi_manager_status, "Connecting... waiting for access point");
+    }
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                      VIEW_EVENT_WIFI_CONNECT, &config, sizeof(config), portMAX_DELAY);
+}
+
+static void wifi_manager_select_event(lv_event_t *event)
+{
+    int index = (int)(intptr_t)lv_event_get_user_data(event);
+    if (index < 0 || index >= wifi_manager_scan_results.cnt) return;
+
+    const struct view_data_wifi_item *item = &wifi_manager_scan_results.aps[index];
+    memset(wifi_manager_selected_ssid, 0, sizeof(wifi_manager_selected_ssid));
+    memcpy(wifi_manager_selected_ssid, item->ssid, sizeof(item->ssid));
+    wifi_manager_selected_ssid[sizeof(wifi_manager_selected_ssid) - 1] = '\0';
+    wifi_manager_selected_secure = item->auth_mode;
+
+    wifi_manager_close_dialog();
+    wifi_manager_dialog = lv_obj_create(wifi_manager_page);
+    lv_obj_set_size(wifi_manager_dialog, 438, 430);
+    lv_obj_center(wifi_manager_dialog);
+    lv_obj_set_style_bg_color(wifi_manager_dialog, lv_color_hex(0x101B26), 0);
+    lv_obj_set_style_border_color(wifi_manager_dialog, lv_color_hex(0x55A8FF), 0);
+    lv_obj_set_style_border_width(wifi_manager_dialog, 2, 0);
+    lv_obj_set_style_radius(wifi_manager_dialog, 14, 0);
+    lv_obj_clear_flag(wifi_manager_dialog, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title = make_label(wifi_manager_dialog, "JOIN WI-FI NETWORK", 18, 0xF2F6FA);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 12);
+    lv_obj_t *ssid = make_label(wifi_manager_dialog, wifi_manager_selected_ssid, 14, 0x55A8FF);
+    lv_obj_set_width(ssid, 400);
+    lv_label_set_long_mode(ssid, LV_LABEL_LONG_DOT);
+    lv_obj_align(ssid, LV_ALIGN_TOP_MID, 0, 48);
+
+    if (wifi_manager_selected_secure) {
+        wifi_manager_password = lv_textarea_create(wifi_manager_dialog);
+        lv_obj_set_size(wifi_manager_password, 400, 38);
+        lv_obj_align(wifi_manager_password, LV_ALIGN_TOP_MID, 0, 82);
+        lv_textarea_set_one_line(wifi_manager_password, true);
+        lv_textarea_set_password_mode(wifi_manager_password, true);
+        lv_textarea_set_max_length(wifi_manager_password, 63);
+        lv_textarea_set_placeholder_text(wifi_manager_password, "Wi-Fi password");
+        lv_obj_set_style_bg_color(wifi_manager_password, lv_color_hex(0x1A2936), 0);
+    } else {
+        lv_obj_t *open_text = make_label(wifi_manager_dialog,
+            "This is an open network; no password is required.", 12, 0x91A3B4);
+        lv_obj_set_width(open_text, 400);
+        lv_obj_align(open_text, LV_ALIGN_TOP_MID, 0, 88);
+    }
+
+    lv_obj_t *join = lv_btn_create(wifi_manager_dialog);
+    lv_obj_set_size(join, 170, 42);
+    lv_obj_align(join, LV_ALIGN_TOP_LEFT, 22, 132);
+    lv_obj_set_style_bg_color(join, lv_color_hex(0x174336), 0);
+    lv_obj_set_style_border_width(join, 0, 0);
+    lv_obj_add_event_cb(join, wifi_manager_join_event, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *join_text = make_label(join, "CONNECT", 13, 0x42D6C3);
+    lv_obj_center(join_text);
+
+    lv_obj_t *cancel = lv_btn_create(wifi_manager_dialog);
+    lv_obj_set_size(cancel, 170, 42);
+    lv_obj_align(cancel, LV_ALIGN_TOP_RIGHT, -22, 132);
+    lv_obj_set_style_bg_color(cancel, lv_color_hex(0x293746), 0);
+    lv_obj_set_style_border_width(cancel, 0, 0);
+    lv_obj_add_event_cb(cancel, wifi_manager_cancel_event, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *cancel_text = make_label(cancel, "CANCEL", 13, 0xD0DCE5);
+    lv_obj_center(cancel_text);
+    wifi_manager_dialog_status = make_label(wifi_manager_dialog, "", 11, 0xF2A65A);
+    lv_obj_set_width(wifi_manager_dialog_status, 400);
+    lv_obj_align(wifi_manager_dialog_status, LV_ALIGN_TOP_MID, 0, 180);
+
+    if (wifi_manager_selected_secure) {
+        wifi_manager_keyboard = lv_keyboard_create(wifi_manager_dialog);
+        lv_obj_set_size(wifi_manager_keyboard, 410, 220);
+        lv_obj_align(wifi_manager_keyboard, LV_ALIGN_BOTTOM_MID, 0, -4);
+        lv_keyboard_set_textarea(wifi_manager_keyboard, wifi_manager_password);
+        lv_obj_add_event_cb(wifi_manager_keyboard, wifi_manager_keyboard_event, LV_EVENT_READY, NULL);
+        lv_obj_add_event_cb(wifi_manager_keyboard, wifi_manager_keyboard_event, LV_EVENT_CANCEL, NULL);
+    }
+}
+
+static void wifi_manager_list_event(void *handler_args, esp_event_base_t base,
+                                    int32_t id, void *event_data)
+{
+    (void)handler_args;
+    (void)base;
+    (void)id;
+    lv_port_sem_take();
+    if (wifi_manager_page != NULL && wifi_manager_list != NULL && event_data != NULL) {
+        memcpy(&wifi_manager_scan_results, event_data, sizeof(wifi_manager_scan_results));
+        lv_obj_clean(wifi_manager_list);
+        uint16_t count = wifi_manager_scan_results.cnt;
+        if (count > WIFI_SCAN_LIST_SIZE) count = WIFI_SCAN_LIST_SIZE;
+        uint16_t shown = 0;
+        for (uint16_t i = 0; i < count; i++) {
+            struct view_data_wifi_item *item = &wifi_manager_scan_results.aps[i];
+            char ssid[sizeof(item->ssid) + 1] = {0};
+            memcpy(ssid, item->ssid, sizeof(item->ssid));
+            if (ssid[0] == '\0') continue;
+            if (wifi_manager_scan_results.is_connect &&
+                strcmp(ssid, wifi_manager_scan_results.connect.ssid) == 0) continue;
+
+            lv_obj_t *row = lv_btn_create(wifi_manager_list);
+            lv_obj_set_width(row, 410);
+            lv_obj_set_height(row, 44);
+            lv_obj_set_style_bg_color(row, lv_color_hex(0x1A2936), 0);
+            lv_obj_set_style_border_color(row, lv_color_hex(0x2A3B49), 0);
+            lv_obj_set_style_border_width(row, 1, 0);
+            lv_obj_set_style_radius(row, 8, 0);
+            lv_obj_add_event_cb(row, wifi_manager_select_event, LV_EVENT_CLICKED,
+                                (void *)(intptr_t)i);
+            char row_text[80];
+            snprintf(row_text, sizeof(row_text), "%s   %d dBm   %s",
+                     ssid, item->rssi, item->auth_mode ? "LOCKED" : "OPEN");
+            lv_obj_t *label = make_label(row, row_text, 12, 0xEDF4F8);
+            lv_obj_set_width(label, 390);
+            lv_label_set_long_mode(label, LV_LABEL_LONG_DOT);
+            lv_obj_center(label);
+            shown++;
+        }
+        if (shown == 0) {
+            lv_obj_t *empty = make_label(wifi_manager_list,
+                "No visible networks found. Try scanning again.", 13, 0x91A3B4);
+            lv_obj_set_width(empty, 400);
+            lv_label_set_long_mode(empty, LV_LABEL_LONG_WRAP);
+        }
+        if (wifi_manager_status != NULL) {
+            if (wifi_manager_scan_results.is_connect) {
+                char connected[33] = {0};
+                memcpy(connected, wifi_manager_scan_results.connect.ssid, 32);
+                lv_label_set_text_fmt(wifi_manager_status,
+                    "Connected to %s  /  %u nearby networks", connected, shown);
+            } else {
+                lv_label_set_text_fmt(wifi_manager_status,
+                    "Not connected  /  %u nearby networks", shown);
+            }
+        }
+    }
+    lv_port_sem_give();
+}
+
+static void wifi_manager_connect_event(void *handler_args, esp_event_base_t base,
+                                       int32_t id, void *event_data)
+{
+    (void)handler_args;
+    (void)base;
+    (void)id;
+    lv_port_sem_take();
+    if (wifi_manager_page != NULL && wifi_manager_status != NULL && event_data != NULL) {
+        const struct view_data_wifi_connet_ret_msg *result = event_data;
+        lv_label_set_text(wifi_manager_status, result->msg);
+        esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                          VIEW_EVENT_WIFI_LIST_REQ, NULL, 0, portMAX_DELAY);
+    }
+    lv_port_sem_give();
+}
+
+static void wifi_manager_open_page(void)
+{
+    if (wifi_manager_page == NULL) {
+        wifi_manager_page = lv_obj_create(NULL);
+        lv_obj_clear_flag(wifi_manager_page, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_style_bg_color(wifi_manager_page, lv_color_hex(0x0B1118), 0);
+        lv_obj_set_style_border_width(wifi_manager_page, 0, 0);
+
+        lv_obj_t *top = lv_obj_create(wifi_manager_page);
+        lv_obj_set_size(top, 440, 42);
+        lv_obj_align(top, LV_ALIGN_TOP_MID, 0, 12);
+        lv_obj_set_style_bg_color(top, lv_color_hex(0x111C27), 0);
+        lv_obj_set_style_border_width(top, 0, 0);
+        lv_obj_set_style_radius(top, 12, 0);
+        lv_obj_clear_flag(top, LV_OBJ_FLAG_SCROLLABLE);
+        make_label(top, "D1  /  TECH TERMINAL", 17, 0xEAF2F8);
+
+        lv_obj_t *back = lv_btn_create(wifi_manager_page);
+        lv_obj_set_size(back, 96, 38);
+        lv_obj_align(back, LV_ALIGN_TOP_LEFT, 20, 68);
+        lv_obj_set_style_bg_color(back, lv_color_hex(0x17304A), 0);
+        lv_obj_set_style_border_width(back, 0, 0);
+        lv_obj_add_event_cb(back, wifi_manager_back_event, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *back_text = make_label(back, "< NETWORK", 11, 0x55A8FF);
+        lv_obj_center(back_text);
+
+        lv_obj_t *title = make_label(wifi_manager_page, "WI-FI MANAGER", 21, 0xF2F6FA);
+        lv_obj_align(title, LV_ALIGN_TOP_LEFT, 136, 74);
+        wifi_manager_status = make_label(wifi_manager_page,
+            "Scanning nearby 2.4 GHz networks...", 11, 0x91A3B4);
+        lv_obj_set_width(wifi_manager_status, 430);
+        lv_obj_align(wifi_manager_status, LV_ALIGN_TOP_LEFT, 24, 118);
+
+        wifi_manager_list = lv_obj_create(wifi_manager_page);
+        lv_obj_set_size(wifi_manager_list, 436, 290);
+        lv_obj_align(wifi_manager_list, LV_ALIGN_TOP_MID, 0, 150);
+        lv_obj_set_style_bg_color(wifi_manager_list, lv_color_hex(0x101B26), 0);
+        lv_obj_set_style_border_color(wifi_manager_list, lv_color_hex(0x2A3B49), 0);
+        lv_obj_set_style_radius(wifi_manager_list, 12, 0);
+        lv_obj_set_style_pad_all(wifi_manager_list, 8, 0);
+        lv_obj_set_style_pad_row(wifi_manager_list, 6, 0);
+        lv_obj_set_flex_flow(wifi_manager_list, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(wifi_manager_list, LV_FLEX_ALIGN_START,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_START);
+        lv_obj_set_scroll_dir(wifi_manager_list, LV_DIR_VER);
+        lv_obj_set_scrollbar_mode(wifi_manager_list, LV_SCROLLBAR_MODE_AUTO);
+
+        lv_obj_t *refresh = lv_btn_create(wifi_manager_page);
+        lv_obj_set_size(refresh, 150, 38);
+        lv_obj_align(refresh, LV_ALIGN_BOTTOM_RIGHT, -22, -12);
+        lv_obj_set_style_bg_color(refresh, lv_color_hex(0x174336), 0);
+        lv_obj_set_style_border_width(refresh, 0, 0);
+        lv_obj_add_event_cb(refresh, wifi_manager_refresh_event, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *refresh_text = make_label(refresh, "SCAN AGAIN", 11, 0x42D6C3);
+        lv_obj_center(refresh_text);
+    }
+
+    active_page = wifi_manager_page;
+    lv_scr_load(wifi_manager_page);
+    wifi_manager_refresh_event(NULL);
 }
 
 static void pi_fetch_task(void *arg)

@@ -21,7 +21,7 @@
 
 ## Phase 2 — Core modules
 
-- [ ] Network Monitor: Wi-Fi state, IP, RSSI and basic diagnostics.
+- [x] Network Monitor: Wi-Fi state, IP, RSSI and basic diagnostics.
 - [ ] Settings: saved endpoints, refresh intervals and user preferences.
 - [ ] Raspberry Pi Monitor: configurable JSON endpoint and clear offline state.
 - [x] GitHub Monitor: fetch latest workflow status and show clear HTTP 403/429 rate-limit/access messages.

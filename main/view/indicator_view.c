@@ -972,6 +972,10 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
         case VIEW_EVENT_WIFI_LIST: {
             ESP_LOGI(TAG, "event: VIEW_DATA_WIFI_LIST");
 
+            /* The Tech Terminal Wi-Fi manager consumes scan results on its own screen. */
+            if (lv_scr_act() != ui_screen_wifi) {
+                break;
+            }
             wifi_list_init(); // clear and init
 
             lv_obj_clear_flag( ui_wifi_list, LV_OBJ_FLAG_HIDDEN );
