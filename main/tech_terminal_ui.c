@@ -465,7 +465,8 @@ static void pi_refresh_event(lv_event_t *event)
     pi_request_active = true;
     lv_label_set_text(pi_status, "CONTACTING PI...");
     lv_label_set_text(pi_metrics, "Waiting for status response");
-    if (xTaskCreate(pi_fetch_task, "pi_status", 6144, NULL, 4, NULL) != pdPASS) {
+    /* HTTPS/TLS plus JSON parsing can exceed the original 6 KiB stack. */
+    if (xTaskCreate(pi_fetch_task, "pi_status", 12288, NULL, 4, NULL) != pdPASS) {
         pi_request_active = false;
         lv_label_set_text(pi_status, "COULD NOT START REQUEST");
     }

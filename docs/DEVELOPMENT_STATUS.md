@@ -66,4 +66,4 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 
 - Made the settings form vertically scrollable and resize it to the visible area when the on-screen keyboard opens, then scroll the selected text field into view.
 - The keyboard close/cancel and Save actions now hide the keyboard, restore the full form height, and return the form to its top position.
-- `git diff --check` and ESP-IDF 5.4.4 build passed. The updated firmware was flashed only to verified COM21; esptool verified all written image hashes and reset the board. Physical verification of editing the lower settings fields and saving remains pending.
+- `git diff --check` and ESP-IDF 5.4.4 build passed. The updated firmware was flashed only to verified COM21; esptool verified all written image hashes and reset the board. The user physically tested Settings after flashing and confirmed the test passed.
