@@ -149,7 +149,7 @@ static IRAM_ATTR void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *
 {
     static lv_coord_t last_x = 0, last_y = 0;
     static bool previous_pressed = false;
-    /* The BSP touch driver applies the board's configured swap/mirror transforms. */
+    /* Calibration showed physical top-left reports near bottom-right, so invert both axes. */
     indev_data_t indev_data = {0};
     if (ESP_OK != indev_get_major_value(&indev_data)) {
         data->state = LV_INDEV_STATE_RELEASED;
@@ -166,9 +166,9 @@ static IRAM_ATTR void touchpad_read(lv_indev_drv_t *indev_drv, lv_indev_data_t *
         data->state = LV_INDEV_STATE_PRESSED;
         /* Keep pointer coordinates inside the active LVGL display bounds. */
         data->point.x = (indev_data.x >= 0 && indev_data.x < CONFIG_LCD_EVB_SCREEN_WIDTH)
-                            ? (lv_coord_t)indev_data.x : 0;
+                            ? (lv_coord_t)(CONFIG_LCD_EVB_SCREEN_WIDTH - 1 - indev_data.x) : 0;
         data->point.y = (indev_data.y >= 0 && indev_data.y < CONFIG_LCD_EVB_SCREEN_HEIGHT)
-                            ? (lv_coord_t)indev_data.y : 0;
+                            ? (lv_coord_t)(CONFIG_LCD_EVB_SCREEN_HEIGHT - 1 - indev_data.y) : 0;
         last_x = data->point.x;
         last_y = data->point.y;
         if (!previous_pressed) {
