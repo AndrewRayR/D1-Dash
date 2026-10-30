@@ -174,6 +174,8 @@ static void settings_save_event(lv_event_t *event);
 static void wifi_recovery_event(void *handler_args, esp_event_base_t base, int32_t id, void *event_data);
 static void wifi_recovery_done_event(void *handler_args, esp_event_base_t base, int32_t id, void *event_data);
 static void remote_settings_updated_event(void *handler_args, esp_event_base_t base, int32_t id, void *event_data);
+static void open_phone_config(lv_event_t *event);
+static void close_phone_config(lv_event_t *event);
 static void module_refresh_timers_update(void);
 static lv_obj_t *make_label(lv_obj_t *parent, const char *text, int size, uint32_t color);
 
@@ -270,14 +272,24 @@ void tech_terminal_ui_init(void)
     lv_obj_clear_flag(footer, LV_OBJ_FLAG_SCROLLABLE);
     make_label(footer, "MODULES", 12, 0x42D6C3);
     lv_obj_t *settings = lv_btn_create(footer);
-    lv_obj_set_size(settings, 92, 34);
-    lv_obj_align(settings, LV_ALIGN_RIGHT_MID, -124, 0);
+    lv_obj_set_size(settings, 86, 34);
+    lv_obj_align(settings, LV_ALIGN_RIGHT_MID, -250, 0);
     lv_obj_set_style_bg_color(settings, lv_color_hex(0x1A2632), 0);
     lv_obj_set_style_border_width(settings, 0, 0);
     lv_obj_set_style_radius(settings, 9, 0);
     lv_obj_add_event_cb(settings, open_settings, LV_EVENT_CLICKED, NULL);
     lv_obj_t *settings_text = make_label(settings, "SETTINGS", 11, 0xD0DCE5);
     lv_obj_center(settings_text);
+
+    lv_obj_t *phone = lv_btn_create(footer);
+    lv_obj_set_size(phone, 104, 34);
+    lv_obj_align(phone, LV_ALIGN_RIGHT_MID, -136, 0);
+    lv_obj_set_style_bg_color(phone, lv_color_hex(0x174336), 0);
+    lv_obj_set_style_border_width(phone, 0, 0);
+    lv_obj_set_style_radius(phone, 9, 0);
+    lv_obj_add_event_cb(phone, open_phone_config, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *phone_text = make_label(phone, "PHONE SETUP", 10, 0x42D6C3);
+    lv_obj_center(phone_text);
 
     lv_obj_t *network = lv_btn_create(footer);
     lv_obj_set_size(network, 112, 34);
@@ -1963,6 +1975,8 @@ static void open_settings(lv_event_t *event)
 
     lv_obj_t *title = make_label(page, "SETTINGS", 22, 0xF2F6FA);
     lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 22);
+    lv_obj_t *phone_hint = make_label(page, "Phone configuration: use PHONE SETUP on the home screen", 10, 0x42D6C3);
+    lv_obj_align(phone_hint, LV_ALIGN_TOP_LEFT, 22, 50);
     lv_obj_t *save = lv_btn_create(page);
     lv_obj_set_size(save, 78, 40);
     lv_obj_align(save, LV_ALIGN_TOP_RIGHT, -16, 14);
@@ -2070,6 +2084,10 @@ static void wifi_recovery_event(void *handler_args, esp_event_base_t base,
     const struct view_data_wifi_recovery *recovery = event_data;
     lv_port_sem_take();
 
+    if (recovery_page != NULL) {
+        lv_obj_del_async(recovery_page);
+        recovery_page = NULL;
+    }
     lv_obj_t *page = lv_obj_create(NULL);
     recovery_page = page;
     active_page = page;
@@ -2077,35 +2095,83 @@ static void wifi_recovery_event(void *handler_args, esp_event_base_t base,
     lv_obj_set_style_border_width(page, 0, 0);
     lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);
 
-    lv_obj_t *title = make_label(page, "WI-FI RECOVERY MODE", 24, 0xFFB454);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 34);
-    lv_obj_t *subtitle = make_label(page, "Connect your phone to configure D1 Dash", 13, 0xA9BAC8);
-    lv_obj_align(subtitle, LV_ALIGN_TOP_MID, 0, 76);
+    if (recovery->recovery_mode) {
+        lv_obj_t *title = make_label(page, "WI-FI RECOVERY MODE", 24, 0xFFB454);
+        lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 34);
+        lv_obj_t *subtitle = make_label(page, "Connect your phone to this temporary network", 13, 0xA9BAC8);
+        lv_obj_align(subtitle, LV_ALIGN_TOP_MID, 0, 76);
 
-    lv_obj_t *ssid_title = make_label(page, "NETWORK NAME", 12, 0x8295A7);
-    lv_obj_align(ssid_title, LV_ALIGN_TOP_LEFT, 28, 126);
-    lv_obj_t *ssid_value = make_label(page, recovery->ssid, 21, 0xF2F6FA);
-    lv_obj_align(ssid_value, LV_ALIGN_TOP_LEFT, 28, 146);
+        lv_obj_t *ssid_title = make_label(page, "NETWORK NAME", 12, 0x8295A7);
+        lv_obj_align(ssid_title, LV_ALIGN_TOP_LEFT, 28, 126);
+        lv_obj_t *ssid_value = make_label(page, recovery->ssid, 21, 0xF2F6FA);
+        lv_obj_align(ssid_value, LV_ALIGN_TOP_LEFT, 28, 146);
 
-    lv_obj_t *password_title = make_label(page, "WI-FI PASSWORD", 12, 0x8295A7);
-    lv_obj_align(password_title, LV_ALIGN_TOP_LEFT, 28, 202);
-    lv_obj_t *password_value = make_label(page, recovery->password, 21, 0x42D6C3);
-    lv_obj_align(password_value, LV_ALIGN_TOP_LEFT, 28, 222);
+        lv_obj_t *password_title = make_label(page, "WI-FI PASSWORD", 12, 0x8295A7);
+        lv_obj_align(password_title, LV_ALIGN_TOP_LEFT, 28, 202);
+        lv_obj_t *password_value = make_label(page, recovery->password, 21, 0x42D6C3);
+        lv_obj_align(password_value, LV_ALIGN_TOP_LEFT, 28, 222);
 
-    lv_obj_t *code_title = make_label(page, "CONFIGURATION LOGIN CODE", 12, 0x8295A7);
-    lv_obj_align(code_title, LV_ALIGN_TOP_LEFT, 28, 278);
-    lv_obj_t *code_value = make_label(page, recovery->access_code, 28, 0xF2F6FA);
-    lv_obj_align(code_value, LV_ALIGN_TOP_LEFT, 28, 298);
+        lv_obj_t *code_title = make_label(page, "CONFIGURATION LOGIN CODE", 12, 0x8295A7);
+        lv_obj_align(code_title, LV_ALIGN_TOP_LEFT, 28, 278);
+        lv_obj_t *code_value = make_label(page, recovery->access_code, 28, 0xF2F6FA);
+        lv_obj_align(code_value, LV_ALIGN_TOP_LEFT, 28, 298);
 
-    lv_obj_t *address = make_label(page, "Open the sign-in page automatically, or visit:", 12, 0xA9BAC8);
-    lv_obj_align(address, LV_ALIGN_TOP_LEFT, 28, 356);
-    lv_obj_t *url = make_label(page, "http://192.168.4.1", 18, 0x55A8FF);
-    lv_obj_align(url, LV_ALIGN_TOP_LEFT, 28, 378);
-    lv_obj_t *note = make_label(page, "Recovery mode stays active until Wi-Fi is restored.", 11, 0x8295A7);
-    lv_obj_align(note, LV_ALIGN_BOTTOM_MID, 0, -18);
+        lv_obj_t *address = make_label(page, "Phone should open sign-in automatically. If not:", 12, 0xA9BAC8);
+        lv_obj_align(address, LV_ALIGN_TOP_LEFT, 28, 356);
+        lv_obj_t *url = make_label(page, "http://192.168.4.1", 18, 0x55A8FF);
+        lv_obj_align(url, LV_ALIGN_TOP_LEFT, 28, 378);
+        lv_obj_t *note = make_label(page, "Recovery ends after the D1 reconnects to Wi-Fi.", 11, 0x8295A7);
+        lv_obj_align(note, LV_ALIGN_BOTTOM_MID, 0, -18);
+    } else {
+        lv_obj_t *title = make_label(page, "PHONE CONFIGURATION", 23, 0x42D6C3);
+        lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 42);
+        lv_obj_t *subtitle = make_label(page, "Keep your phone on the same Wi-Fi network as D1", 12, 0xA9BAC8);
+        lv_obj_align(subtitle, LV_ALIGN_TOP_MID, 0, 86);
+        lv_obj_t *address = make_label(page, "OPEN THIS ADDRESS ON YOUR PHONE", 12, 0x8295A7);
+        lv_obj_align(address, LV_ALIGN_TOP_LEFT, 28, 160);
+        char url_text[48];
+        snprintf(url_text, sizeof(url_text), "http://%s", recovery->address);
+        lv_obj_t *url = make_label(page, url_text, 24, 0x55A8FF);
+        lv_obj_align(url, LV_ALIGN_TOP_LEFT, 28, 186);
+        lv_obj_t *code_title = make_label(page, "CONFIGURATION LOGIN CODE", 12, 0x8295A7);
+        lv_obj_align(code_title, LV_ALIGN_TOP_LEFT, 28, 258);
+        lv_obj_t *code_value = make_label(page, recovery->access_code, 32, 0xF2F6FA);
+        lv_obj_align(code_value, LV_ALIGN_TOP_LEFT, 28, 284);
+        lv_obj_t *note = make_label(page, "Enter this code on the sign-in page. Access expires after 10 minutes of inactivity.", 11, 0xA9BAC8);
+        lv_obj_set_width(note, 420);
+        lv_obj_align(note, LV_ALIGN_TOP_LEFT, 28, 346);
+        lv_obj_t *close = lv_btn_create(page);
+        lv_obj_set_size(close, 190, 42);
+        lv_obj_align(close, LV_ALIGN_BOTTOM_MID, 0, -18);
+        lv_obj_set_style_bg_color(close, lv_color_hex(0x17304A), 0);
+        lv_obj_set_style_border_width(close, 0, 0);
+        lv_obj_add_event_cb(close, close_phone_config, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *close_text = make_label(close, "CLOSE PHONE ACCESS", 11, 0x55A8FF);
+        lv_obj_center(close_text);
+    }
 
     lv_scr_load(page);
     lv_port_sem_give();
+}
+
+static void open_phone_config(lv_event_t *event)
+{
+    (void)event;
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                      VIEW_EVENT_PHONE_CONFIG_START, NULL, 0, portMAX_DELAY);
+}
+
+static void close_phone_config(lv_event_t *event)
+{
+    (void)event;
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                      VIEW_EVENT_PHONE_CONFIG_STOP, NULL, 0, portMAX_DELAY);
+    if (recovery_page != NULL) {
+        lv_obj_del_async(recovery_page);
+        recovery_page = NULL;
+    }
+    active_page = NULL;
+    lv_scr_load(home);
 }
 
 static void remote_settings_updated_event(void *handler_args, esp_event_base_t base,

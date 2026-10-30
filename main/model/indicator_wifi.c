@@ -38,7 +38,9 @@ static int wifi_retry_max  = 3;
 static bool __g_ping_done = true;
 static bool s_recovery_active;
 static bool s_recovery_connecting;
+static bool s_remote_portal_active;
 static esp_netif_t *s_recovery_netif;
+static esp_netif_t *s_station_netif;
 
 static EventGroupHandle_t __wifi_event_group;
 
@@ -47,6 +49,10 @@ static const char *TAG = "wifi-model";
 static void __wifi_recovery_start(void)
 {
     if (s_recovery_active) return;
+    if (s_remote_portal_active) {
+        tech_recovery_portal_stop();
+        s_remote_portal_active = false;
+    }
 
     static const char alphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
     char ssid[33];
@@ -74,7 +80,7 @@ static void __wifi_recovery_start(void)
 
     esp_err_t err = esp_wifi_set_mode(WIFI_MODE_AP);
     if (err == ESP_OK) err = esp_wifi_set_config(WIFI_IF_AP, &ap_config);
-    if (err == ESP_OK) err = tech_recovery_portal_start(access_code);
+    if (err == ESP_OK) err = tech_recovery_portal_start(access_code, true, true);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Could not start recovery network/portal: %s", esp_err_to_name(err));
         esp_wifi_set_mode(WIFI_MODE_STA);
@@ -88,6 +94,7 @@ static void __wifi_recovery_start(void)
     strlcpy(info.password, password, sizeof(info.password));
     strlcpy(info.access_code, access_code, sizeof(info.access_code));
     strlcpy(info.address, "192.168.4.1", sizeof(info.address));
+    info.recovery_mode = true;
     esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_RECOVERY,
                       &info, sizeof(info), portMAX_DELAY);
     ESP_LOGW(TAG, "Wi-Fi recovery network active; SSID=%s (credentials displayed on device)", ssid);
@@ -526,6 +533,48 @@ static void __view_event_handler(void* handler_args, esp_event_base_t base, int3
             __wifi_cfg_restore();
             break;
         }
+        case VIEW_EVENT_PHONE_CONFIG_START: {
+            struct view_data_wifi_st st;
+            __wifi_st_get(&st);
+            if (!st.is_connected || s_recovery_active || s_remote_portal_active ||
+                s_station_netif == NULL) {
+                ESP_LOGW(TAG, "Phone configuration requires an active Wi-Fi connection");
+                break;
+            }
+            esp_netif_ip_info_t ip_info = {0};
+            if (esp_netif_get_ip_info(s_station_netif, &ip_info) != ESP_OK ||
+                ip_info.ip.addr == 0) {
+                ESP_LOGW(TAG, "Could not read the D1 Wi-Fi address");
+                break;
+            }
+            char access_code[7];
+            snprintf(access_code, sizeof(access_code), "%06lu",
+                     (unsigned long)(esp_random() % 1000000UL));
+            esp_err_t portal_err = tech_recovery_portal_start(access_code, false, false);
+            if (portal_err != ESP_OK) {
+                ESP_LOGE(TAG, "Could not start phone configuration portal: %s",
+                         esp_err_to_name(portal_err));
+                break;
+            }
+            s_remote_portal_active = true;
+            struct view_data_wifi_recovery info = {0};
+            strlcpy(info.access_code, access_code, sizeof(info.access_code));
+            snprintf(info.address, sizeof(info.address), IPSTR, IP2STR(&ip_info.ip));
+            info.recovery_mode = false;
+            esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_RECOVERY,
+                              &info, sizeof(info), portMAX_DELAY);
+            ESP_LOGI(TAG, "Phone configuration portal started on station IP " IPSTR,
+                     IP2STR(&ip_info.ip));
+            break;
+        }
+        case VIEW_EVENT_PHONE_CONFIG_STOP: {
+            if (s_remote_portal_active) {
+                tech_recovery_portal_stop();
+                s_remote_portal_active = false;
+                ESP_LOGI(TAG, "Phone configuration portal stopped");
+            }
+            break;
+        }
         case VIEW_EVENT_SHUTDOWN: {
             ESP_LOGI(TAG, "event: VIEW_EVENT_SHUTDOWN");
             __wifi_shutdown();
@@ -556,7 +605,7 @@ int indicator_wifi_init(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    esp_netif_create_default_wifi_sta();
+    s_station_netif = esp_netif_create_default_wifi_sta();
     s_recovery_netif = esp_netif_create_default_wifi_ap();
     if (s_recovery_netif == NULL) return ESP_FAIL;
 
@@ -598,6 +647,12 @@ int indicator_wifi_init(void)
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle, 
                                                             VIEW_EVENT_BASE, VIEW_EVENT_SHUTDOWN, 
+                                                            __view_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle,
+                                                            VIEW_EVENT_BASE, VIEW_EVENT_PHONE_CONFIG_START,
+                                                            __view_event_handler, NULL, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register_with(view_event_handle,
+                                                            VIEW_EVENT_BASE, VIEW_EVENT_PHONE_CONFIG_STOP,
                                                             __view_event_handler, NULL, NULL));
 
     wifi_config_t wifi_cfg;

@@ -128,3 +128,16 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - ESP-IDF 5.4.4 build passed. Final image size: 0x2217E0 bytes; 47% of the 4 MiB app partition remains.
 - Firmware was flashed only to verified COM21. esptool verified image hashes and hard-reset the board. Serial boot logs confirmed SenseCAP_Indicator detection, 8 MB PSRAM initialization and memory test, successful Wi-Fi association, and DHCP assignment; no startup crash or stack overflow appeared in the captured log. COM22 remains untouched.
 - Physical captive-portal testing is still pending. The device currently reconnects to its existing saved Wi-Fi, so the recovery SSID/password/login flow and Android/iOS automatic portal pop-up have not yet been exercised on a phone. The normal home-Wi-Fi remote configuration mode is also not implemented yet; the current portal is intentionally active during first-time setup or recovery mode only.
+
+
+## Normal-network phone configuration (2026-10-29)
+
+- Added a prominent PHONE SETUP control to the home-screen footer.
+- When tapped while Wi-Fi is connected, the D1 starts the same authenticated HTTP configuration service on its station/LAN interface without enabling captive DNS or creating a second Wi-Fi network.
+- The D1 displays its current LAN address and a fresh six-digit login code. The phone must remain connected to the same home Wi-Fi/LAN and browse to the displayed `http://<D1-IP>` address.
+- The page uses the existing login lockout and ten-minute sliding session. The configuration form saves settings through NVS. Wi-Fi credential changes are deliberately rejected in LAN mode; changing networks remains a recovery-mode action.
+- Added CLOSE PHONE ACCESS on the D1 screen to stop the LAN configuration server.
+- The existing recovery mode remains unchanged in purpose: it starts a unique WPA2 setup network after first boot without credentials or after station connection retries are exhausted, displays its password and login code, and runs captive DNS to `192.168.4.1`.
+- ESP-IDF 5.4.4 build passed; binary size 0x222380 bytes, with 47% of the 4 MiB app partition remaining.
+- Firmware flashed to verified COM21 only; esptool hash verification passed. Boot logs confirmed SenseCAP_Indicator detection, 8 MB PSRAM memory test, and successful association/DHCP at 192.168.0.85. No startup crash appeared in the captured log.
+- Physical verification remains pending: tap PHONE SETUP, browse to the displayed IP from a phone on the same Wi-Fi, sign in, save a settings-only change, then close the portal. Recovery AP/captive-popup testing is separate and has not been physically triggered.

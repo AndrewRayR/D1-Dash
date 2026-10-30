@@ -21,6 +21,7 @@ struct view_data_wifi_recovery {
     char password[17];
     char access_code[7];
     char address[16];
+    bool recovery_mode;
 };
 
 struct view_data_wifi_st
@@ -158,6 +159,8 @@ enum {
     VIEW_EVENT_WIFI_RECOVERY,   // struct view_data_wifi_recovery
     VIEW_EVENT_WIFI_RECOVERY_DONE,
     VIEW_EVENT_REMOTE_SETTINGS_UPDATED,
+    VIEW_EVENT_PHONE_CONFIG_START,
+    VIEW_EVENT_PHONE_CONFIG_STOP,
 
     VIEW_EVENT_TIME_CFG_UPDATE,  //  struct view_data_time_cfg
     VIEW_EVENT_TIME_CFG_APPLY,   //  struct view_data_time_cfg

@@ -33,6 +33,7 @@ static int64_t s_session_expiry_us;
 static int64_t s_login_window_start_us;
 static int64_t s_login_lockout_until_us;
 static uint8_t s_login_failures;
+static bool s_require_wifi;
 static SemaphoreHandle_t s_pending_mutex;
 static bool s_pending_wifi;
 static char s_pending_ssid[33];
@@ -44,7 +45,7 @@ static const char LOGIN_PAGE[] =
 "max-width:440px;margin:12vh auto;padding:24px}main{background:#111c27;padding:24px;border-radius:16px}"
 "input,button{box-sizing:border-box;width:100%;padding:14px;margin:9px 0;border-radius:9px;border:1px solid #405366}"
 "input{background:#09121b;color:white}button{background:#42d6c3;color:#061318;font-weight:700}</style></head>"
-"<body><main><h1>D1 Dash</h1><p>Device recovery sign-in</p><form method='post' action='/login'>"
+"<body><main><h1>D1 Dash</h1><p>Secure device sign-in</p><form method='post' action='/login'>"
 "<label>Enter the access code shown on the D1 screen</label><input name='code' inputmode='numeric' "
 "autocomplete='one-time-code' maxlength='6' required><button>Continue</button></form></main></body></html>";
 
@@ -54,10 +55,10 @@ static const char SETUP_PAGE[] =
 "max-width:480px;margin:5vh auto;padding:20px}section{background:#111c27;padding:22px;border-radius:16px}"
 "input,button{box-sizing:border-box;width:100%;padding:13px;margin:8px 0;border-radius:9px;border:1px solid #405366}"
 "input{background:#09121b;color:white}button{background:#42d6c3;color:#061318;font-weight:700}</style></head>"
-"<body><section><h1>D1 Dash</h1><p>Recovery configuration</p><form method='post' action='/wifi'>"
-"<h2>Wi-Fi</h2><label>Home Wi-Fi network name</label><input name='ssid' maxlength='32' required>"
-"<label>Home Wi-Fi password (leave blank for an open network)</label><input name='password' type='password' maxlength='64'>"
-"<h2>Device settings (optional)</h2><p>Leave a field blank to keep its current value.</p>"
+"<body><section><h1>D1 Dash</h1><p>Device configuration</p><form method='post' action='/wifi'>"
+"<h2>Wi-Fi</h2><label>Home Wi-Fi network name (leave blank to keep current connection)</label><input name='ssid' maxlength='32'>"
+"<label>Home Wi-Fi password (only needed when changing networks)</label><input name='password' type='password' maxlength='64'>"
+"<h2>Device settings</h2><p>Leave a field blank to keep its current value.</p>"
 "<label>Screen brightness (1-100)</label><input name='brightness' type='number' min='1' max='100'>"
 "<label>Screen timeout in minutes (0-120; 0 disables)</label><input name='timeout' type='number' min='0' max='120'>"
 "<label>Refresh interval in minutes (1-60)</label><input name='refresh' type='number' min='1' max='60'>"
@@ -66,7 +67,7 @@ static const char SETUP_PAGE[] =
 "<label>GitHub repository</label><input name='github_repo' maxlength='63'>"
 "<label>Raspberry Pi status URL</label><input name='pi_url' maxlength='127'>"
 "<label>Information location</label><input name='information_city' maxlength='47'>"
-"<button>Save settings and connect</button></form><p>Keep this page open while the D1 attempts to connect.</p></section></body></html>";
+"<button>Save settings</button></form><p>Settings are saved directly on your D1. If you change Wi-Fi, the device will reconnect automatically.</p></section></body></html>";
 
 static bool has_session(httpd_req_t *req)
 {
@@ -220,8 +221,15 @@ static esp_err_t portal_post_handler(httpd_req_t *req)
         char ssid[33] = {0}, password[65] = {0};
         form_value(body, "ssid", ssid, sizeof(ssid));
         form_value(body, "password", password, sizeof(password));
-        if (ssid[0] == '\0' || strlen(ssid) > 32) {
-            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "A valid Wi-Fi name is required");
+        if ((s_require_wifi && ssid[0] == '\0') || strlen(ssid) > 32) {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                                s_require_wifi ? "A Wi-Fi name is required in recovery mode" :
+                                                 "Wi-Fi name is too long");
+            return ESP_FAIL;
+        }
+        if (!s_require_wifi && ssid[0] != '\0') {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                                "Change Wi-Fi credentials in recovery mode, not LAN configuration mode");
             return ESP_FAIL;
         }
 
@@ -312,16 +320,18 @@ static esp_err_t portal_post_handler(httpd_req_t *req)
         esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_REMOTE_SETTINGS_UPDATED,
                           NULL, 0, portMAX_DELAY);
 
-        xSemaphoreTake(s_pending_mutex, portMAX_DELAY);
-        strlcpy(s_pending_ssid, ssid, sizeof(s_pending_ssid));
-        strlcpy(s_pending_password, password, sizeof(s_pending_password));
-        s_pending_wifi = true;
-        xSemaphoreGive(s_pending_mutex);
+        if (ssid[0] != '\0') {
+            xSemaphoreTake(s_pending_mutex, portMAX_DELAY);
+            strlcpy(s_pending_ssid, ssid, sizeof(s_pending_ssid));
+            strlcpy(s_pending_password, password, sizeof(s_pending_password));
+            s_pending_wifi = true;
+            xSemaphoreGive(s_pending_mutex);
+        }
         httpd_resp_set_type(req, "text/html; charset=utf-8");
         return httpd_resp_sendstr(req,
             "<!doctype html><meta name='viewport' content='width=device-width,initial-scale=1'>"
             "<body style='font:18px system-ui;background:#0b1118;color:white;padding:30px'>"
-            "<h2>Settings received</h2><p>The D1 is attempting to connect. Keep this page open.</p></body>");
+            "<h2>Settings saved</h2><p>Your D1 settings have been saved. You can close this page.</p></body>");
     }
 
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not found");
@@ -372,7 +382,8 @@ static void dns_server_task(void *arg)
     vTaskDelete(NULL);
 }
 
-esp_err_t tech_recovery_portal_start(const char *pair_code)
+esp_err_t tech_recovery_portal_start(const char *pair_code,
+                                      bool captive_dns, bool require_wifi)
 {
     if (pair_code == NULL || strlen(pair_code) != 6) return ESP_ERR_INVALID_ARG;
     if (s_server != NULL) return ESP_OK;
@@ -384,6 +395,7 @@ esp_err_t tech_recovery_portal_start(const char *pair_code)
     s_pending_password[0] = '\0';
     xSemaphoreGive(s_pending_mutex);
     strlcpy(s_pair_code, pair_code, sizeof(s_pair_code));
+    s_require_wifi = require_wifi;
     s_session[0] = '\0';
     s_session_expiry_us = 0;
     s_login_window_start_us = esp_timer_get_time();
@@ -403,11 +415,13 @@ esp_err_t tech_recovery_portal_start(const char *pair_code)
     if (err != ESP_OK) {
         httpd_stop(s_server); s_server = NULL; return err;
     }
-    s_dns_running = true;
-    if (xTaskCreate(dns_server_task, "portal_dns", 3072, NULL, 4, &s_dns_task) != pdPASS) {
-        s_dns_running = false; httpd_stop(s_server); s_server = NULL; return ESP_ERR_NO_MEM;
+    if (captive_dns) {
+        s_dns_running = true;
+        if (xTaskCreate(dns_server_task, "portal_dns", 3072, NULL, 4, &s_dns_task) != pdPASS) {
+            s_dns_running = false; httpd_stop(s_server); s_server = NULL; return ESP_ERR_NO_MEM;
+        }
     }
-    ESP_LOGI(TAG, "Recovery portal started at http://%s", PORTAL_IP);
+    ESP_LOGI(TAG, "Configuration portal started (captive DNS=%s)", captive_dns ? "yes" : "no");
     return ESP_OK;
 }
 

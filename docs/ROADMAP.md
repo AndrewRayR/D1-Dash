@@ -97,7 +97,9 @@ The first implementation is a D1-hosted recovery portal. It does not depend on t
 - [x] Validate supplied values and save settings through the existing NVS settings layer.
 - [x] Attempt the new station connection while keeping the setup access point available; stop the temporary portal only after the D1 receives an IP address.
 - [ ] Physically verify captive-portal auto-open behavior on Android and iOS, manual URL access, wrong-password retry, and successful Wi-Fi recovery.
-- [ ] Add an optional authenticated configuration page reachable over the normal home Wi-Fi network; the current web portal is intentionally active only during recovery/setup mode.
+- [x] Add an optional authenticated configuration page reachable over the normal home Wi-Fi network, started from the home-screen PHONE SETUP button; it displays the D1's current LAN address and a six-digit login code.
+- [x] Reuse the recovery portal form on the normal network, allowing settings-only saves without forcing a Wi-Fi reconnect; Wi-Fi credentials are optional in this mode.
+- [ ] Physically verify phone login and settings-only saves over the normal home Wi-Fi network, then verify recovery captive-portal behavior separately.
 
 ### BLE keyboard
 - [ ] Add BLE HID host support so a standard Bluetooth LE keyboard can be paired.
