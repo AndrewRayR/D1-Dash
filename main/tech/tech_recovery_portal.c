@@ -66,7 +66,9 @@ static const char LOGIN_PAGE[] =
 "<button type='submit'>Unlock device</button></form>"
 "<p class='hint'>Your code stays on your D1 screen. Access expires after inactivity.</p>"
 "</main><script>const p=document.getElementById('code');p.addEventListener('input',()=>{"
-"p.value=p.value.replace(/\\D/g,'').slice(0,6)});</script></body></html>";
+"p.value=p.value.replace(/\\D/g,'').slice(0,6)});if(new URLSearchParams(location.search).has('error')){"
+"const e=document.createElement('p');e.className='error';e.textContent='That code did not match. Check the code on your D1 and try again.';"
+"document.querySelector('form').prepend(e)}</script></body></html>";
 
 static const char SETUP_PAGE[] =
 "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
@@ -216,9 +218,9 @@ static esp_err_t portal_post_handler(httpd_req_t *req)
                 httpd_resp_set_status(req, "429 Too Many Requests");
                 return httpd_resp_sendstr(req, "Too many attempts. Wait one minute and try again.");
             }
-            httpd_resp_set_status(req, "401 Unauthorized");
-            httpd_resp_set_type(req, "text/html; charset=utf-8");
-            return httpd_resp_sendstr(req, LOGIN_PAGE);
+            httpd_resp_set_status(req, "303 See Other");
+            httpd_resp_set_hdr(req, "Location", "/?error=1");
+            return httpd_resp_send(req, NULL, 0);
         }
         s_login_failures = 0;
         s_session_expiry_us = now + 10LL * 60LL * 1000000LL;
