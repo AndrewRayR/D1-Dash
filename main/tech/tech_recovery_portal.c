@@ -40,14 +40,33 @@ static char s_pending_ssid[33];
 static char s_pending_password[65];
 
 static const char LOGIN_PAGE[] =
-"<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
-"<title>D1 Dash Setup</title><style>body{font:16px system-ui;background:#0b1118;color:#eaf2f8;"
-"max-width:440px;margin:12vh auto;padding:24px}main{background:#111c27;padding:24px;border-radius:16px}"
-"input,button{box-sizing:border-box;width:100%;padding:14px;margin:9px 0;border-radius:9px;border:1px solid #405366}"
-"input{background:#09121b;color:white}button{background:#42d6c3;color:#061318;font-weight:700}</style></head>"
-"<body><main><h1>D1 Dash</h1><p>Secure device sign-in</p><form method='post' action='/login'>"
-"<label>Enter the access code shown on the D1 screen</label><input name='code' inputmode='numeric' "
-"autocomplete='one-time-code' maxlength='6' required><button>Continue</button></form></main></body></html>";
+"<!doctype html><html lang='en'><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
+"<meta name='theme-color' content='#0b1420'><title>D1 Dash | Sign in</title>"
+"<style>*{box-sizing:border-box}body{font:16px/1.5 system-ui,-apple-system,sans-serif;"
+"min-height:100vh;margin:0;padding:28px 18px;display:grid;place-items:center;"
+"background:radial-gradient(ellipse at 50% 0%,#173447 0%,#0b1420 62%);color:#edf5fb}"
+".card{width:100%;max-width:390px;padding:30px 26px;background:#111f2d;border:1px solid #294052;"
+"border-radius:22px;box-shadow:0 24px 70px #0008}.mark{width:48px;height:48px;border-radius:14px;"
+"display:grid;place-items:center;background:#123b3d;color:#55e0cc;font-size:25px;font-weight:800}"
+"h1{font-size:25px;margin:20px 0 4px;letter-spacing:-.5px}.sub{color:#9db0c0;margin:0 0 26px}"
+"label{display:block;font-size:13px;font-weight:650;color:#c5d3df;margin-bottom:10px}"
+".pin{width:100%;height:62px;border:1px solid #496174;border-radius:13px;background:#091522;"
+"color:#f3fbff;text-align:center;font:700 27px/1.2 ui-monospace,monospace;letter-spacing:13px;"
+"padding:10px 12px 10px 24px;outline:none}.pin:focus{border-color:#50d9c6;box-shadow:0 0 0 3px #50d9c622}"
+"button{width:100%;margin-top:18px;padding:15px;border:0;border-radius:12px;background:#4bd9c5;"
+"color:#06201e;font-size:16px;font-weight:750;cursor:pointer}button:active{transform:translateY(1px)}"
+".hint{font-size:12px;color:#8298aa;text-align:center;margin:18px 0 0}"
+".error{padding:10px 12px;border-radius:10px;background:#4a252b;color:#ffc2c7;font-size:13px;margin:0 0 16px}"
+"</style></head><body><main class='card'><div class='mark'>D</div><h1>Sign in to D1 Dash</h1>"
+"<p class='sub'>Enter the 6-digit access code displayed on your device.</p>"
+"<form method='post' action='/login'><label for='code'>DEVICE ACCESS CODE</label>"
+"<input class='pin' id='code' name='code' type='text' inputmode='numeric' pattern='[0-9]{6}' "
+"autocomplete='one-time-code' maxlength='6' minlength='6' placeholder='••••••' "
+"aria-label='Six digit access code' required autofocus>"
+"<button type='submit'>Unlock device</button></form>"
+"<p class='hint'>Your code stays on your D1 screen. Access expires after inactivity.</p>"
+"</main><script>const p=document.getElementById('code');p.addEventListener('input',()=>{"
+"p.value=p.value.replace(/\\D/g,'').slice(0,6)});</script></body></html>";
 
 static const char SETUP_PAGE[] =
 "<!doctype html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>"
