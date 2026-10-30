@@ -5,6 +5,7 @@
 #include "lv_port.h"
 #include "cJSON.h"
 #include "view_data.h"
+#include "indicator_display.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
@@ -2181,6 +2182,9 @@ static void remote_settings_updated_event(void *handler_args, esp_event_base_t b
     (void)base;
     (void)event_data;
     if (id != VIEW_EVENT_REMOTE_SETTINGS_UPDATED) return;
+    /* A phone-based settings save is user activity: wake the panel and restart
+     * its configured sleep countdown so it cannot go dark during the save. */
+    indicator_display_on();
     lv_port_sem_take();
     module_refresh_timers_update();
     lv_port_sem_give();
