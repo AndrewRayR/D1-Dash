@@ -18,6 +18,7 @@
 
 static lv_obj_t *home;
 static lv_obj_t *active_page;
+static lv_obj_t *recovery_page;
 static lv_obj_t *settings_fields[5];
 static lv_obj_t *settings_form;
 static lv_obj_t *settings_keyboard;
@@ -170,6 +171,10 @@ static void settings_field_event(lv_event_t *event);
 static void settings_keyboard_event(lv_event_t *event);
 static void settings_hide_keyboard(void);
 static void settings_save_event(lv_event_t *event);
+static void wifi_recovery_event(void *handler_args, esp_event_base_t base, int32_t id, void *event_data);
+static void wifi_recovery_done_event(void *handler_args, esp_event_base_t base, int32_t id, void *event_data);
+static void remote_settings_updated_event(void *handler_args, esp_event_base_t base, int32_t id, void *event_data);
+static void module_refresh_timers_update(void);
 static lv_obj_t *make_label(lv_obj_t *parent, const char *text, int size, uint32_t color);
 
 void tech_terminal_ui_init(void)
@@ -186,6 +191,12 @@ void tech_terminal_ui_init(void)
         VIEW_EVENT_BASE, VIEW_EVENT_WIFI_LIST, wifi_manager_list_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
         VIEW_EVENT_BASE, VIEW_EVENT_WIFI_CONNECT_RET, wifi_manager_connect_event, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
+        VIEW_EVENT_BASE, VIEW_EVENT_WIFI_RECOVERY, wifi_recovery_event, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
+        VIEW_EVENT_BASE, VIEW_EVENT_WIFI_RECOVERY_DONE, wifi_recovery_done_event, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
+        VIEW_EVENT_BASE, VIEW_EVENT_REMOTE_SETTINGS_UPDATED, remote_settings_updated_event, NULL));
     home = lv_obj_create(NULL);
     lv_obj_clear_flag(home, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_style_bg_color(home, lv_color_hex(0x0B1118), 0);
@@ -2047,6 +2058,83 @@ static void open_settings(lv_event_t *event)
     lv_obj_add_event_cb(settings_keyboard, settings_keyboard_event, LV_EVENT_READY, NULL);
     lv_obj_add_event_cb(settings_keyboard, settings_keyboard_event, LV_EVENT_CANCEL, NULL);
     lv_scr_load(page);
+}
+
+static void wifi_recovery_event(void *handler_args, esp_event_base_t base,
+                                  int32_t id, void *event_data)
+{
+    (void)handler_args;
+    (void)base;
+    if (id != VIEW_EVENT_WIFI_RECOVERY || event_data == NULL) return;
+
+    const struct view_data_wifi_recovery *recovery = event_data;
+    lv_port_sem_take();
+
+    lv_obj_t *page = lv_obj_create(NULL);
+    recovery_page = page;
+    active_page = page;
+    lv_obj_set_style_bg_color(page, lv_color_hex(0x0B1118), 0);
+    lv_obj_set_style_border_width(page, 0, 0);
+    lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t *title = make_label(page, "WI-FI RECOVERY MODE", 24, 0xFFB454);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 34);
+    lv_obj_t *subtitle = make_label(page, "Connect your phone to configure D1 Dash", 13, 0xA9BAC8);
+    lv_obj_align(subtitle, LV_ALIGN_TOP_MID, 0, 76);
+
+    lv_obj_t *ssid_title = make_label(page, "NETWORK NAME", 12, 0x8295A7);
+    lv_obj_align(ssid_title, LV_ALIGN_TOP_LEFT, 28, 126);
+    lv_obj_t *ssid_value = make_label(page, recovery->ssid, 21, 0xF2F6FA);
+    lv_obj_align(ssid_value, LV_ALIGN_TOP_LEFT, 28, 146);
+
+    lv_obj_t *password_title = make_label(page, "WI-FI PASSWORD", 12, 0x8295A7);
+    lv_obj_align(password_title, LV_ALIGN_TOP_LEFT, 28, 202);
+    lv_obj_t *password_value = make_label(page, recovery->password, 21, 0x42D6C3);
+    lv_obj_align(password_value, LV_ALIGN_TOP_LEFT, 28, 222);
+
+    lv_obj_t *code_title = make_label(page, "CONFIGURATION LOGIN CODE", 12, 0x8295A7);
+    lv_obj_align(code_title, LV_ALIGN_TOP_LEFT, 28, 278);
+    lv_obj_t *code_value = make_label(page, recovery->access_code, 28, 0xF2F6FA);
+    lv_obj_align(code_value, LV_ALIGN_TOP_LEFT, 28, 298);
+
+    lv_obj_t *address = make_label(page, "Open the sign-in page automatically, or visit:", 12, 0xA9BAC8);
+    lv_obj_align(address, LV_ALIGN_TOP_LEFT, 28, 356);
+    lv_obj_t *url = make_label(page, "http://192.168.4.1", 18, 0x55A8FF);
+    lv_obj_align(url, LV_ALIGN_TOP_LEFT, 28, 378);
+    lv_obj_t *note = make_label(page, "Recovery mode stays active until Wi-Fi is restored.", 11, 0x8295A7);
+    lv_obj_align(note, LV_ALIGN_BOTTOM_MID, 0, -18);
+
+    lv_scr_load(page);
+    lv_port_sem_give();
+}
+
+static void remote_settings_updated_event(void *handler_args, esp_event_base_t base,
+                                           int32_t id, void *event_data)
+{
+    (void)handler_args;
+    (void)base;
+    (void)event_data;
+    if (id != VIEW_EVENT_REMOTE_SETTINGS_UPDATED) return;
+    lv_port_sem_take();
+    module_refresh_timers_update();
+    lv_port_sem_give();
+}
+
+static void wifi_recovery_done_event(void *handler_args, esp_event_base_t base,
+                                     int32_t id, void *event_data)
+{
+    (void)handler_args;
+    (void)base;
+    (void)event_data;
+    if (id != VIEW_EVENT_WIFI_RECOVERY_DONE) return;
+    lv_port_sem_take();
+    if (recovery_page != NULL) {
+        lv_obj_del_async(recovery_page);
+        recovery_page = NULL;
+    }
+    active_page = NULL;
+    if (home != NULL) lv_scr_load(home);
+    lv_port_sem_give();
 }
 
 static void show_home(lv_event_t *event)

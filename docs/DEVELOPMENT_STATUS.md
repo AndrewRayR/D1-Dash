@@ -1,6 +1,6 @@
 # Development Status
 
-Last updated: 2026-10-28
+Last updated: 2026-10-29
 
 ## Recovery context
 
@@ -115,3 +115,16 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Final ESP-IDF 5.4.4 build after the timer integration and home-screen description updates passed. App image size: 0x21A580 bytes, leaving 47% of the 4 MiB app partition free.
 - Re-identified COM21 as the ESP32-S3 (MAC 74:4D:BD:95:B0:28), flashed only COM21, and verified image hashes. Boot logs confirmed the SenseCAP_Indicator board, 8 MB PSRAM memory test, Wi-Fi association, and DHCP success. No startup stack-overflow or crash appeared in the captured boot sequence.
 - Physical verification of automatic refresh timing and interaction behavior is still required. COM22 remains untouched.
+
+
+## Phone-based Wi-Fi recovery portal implementation (2026-10-29)
+
+- Added a D1-hosted recovery portal in `main/tech/tech_recovery_portal.c` with a small HTTP server and local DNS catch-all. HTTP requests to arbitrary hostnames/paths on the setup network resolve to the portal, allowing mobile captive-network detection to offer its sign-in page. HTTPS interception is not attempted; the D1 screen also displays the manual address `http://192.168.4.1`.
+- The Wi-Fi model now creates a recovery access point on first boot when no saved Wi-Fi network exists, and after the configured station retry limit is exhausted for a saved network.
+- Each recovery session generates a distinct setup SSID, a random 12-character WPA2 network password, and a six-digit configuration login code. The touchscreen displays all three plus the manual URL.
+- The portal requires the on-screen code, applies a five-failed-attempt/one-minute lockout, and uses a ten-minute sliding authenticated session. The temporary network is local-only and is not exposed through a cloud service or public internet listener.
+- The responsive configuration form can update Wi-Fi credentials and existing device settings: brightness, screen timeout, refresh interval, browser home URL, GitHub owner/repository, Raspberry Pi status URL, and information location. Values are validated and persisted using the existing NVS settings API. Brightness is applied immediately; refresh timers are updated through the UI event loop.
+- After a phone submits new Wi-Fi credentials, the D1 enters AP+STA mode and attempts the new station connection while keeping the setup network and portal available. The temporary AP/portal is stopped only after the station receives an IP address. Failed attempts leave the portal available for another submission.
+- ESP-IDF 5.4.4 build passed. Final image size: 0x2217E0 bytes; 47% of the 4 MiB app partition remains.
+- Firmware was flashed only to verified COM21. esptool verified image hashes and hard-reset the board. Serial boot logs confirmed SenseCAP_Indicator detection, 8 MB PSRAM initialization and memory test, successful Wi-Fi association, and DHCP assignment; no startup crash or stack overflow appeared in the captured log. COM22 remains untouched.
+- Physical captive-portal testing is still pending. The device currently reconnects to its existing saved Wi-Fi, so the recovery SSID/password/login flow and Android/iOS automatic portal pop-up have not yet been exercised on a phone. The normal home-Wi-Fi remote configuration mode is also not implemented yet; the current portal is intentionally active during first-time setup or recovery mode only.

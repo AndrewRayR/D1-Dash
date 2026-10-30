@@ -83,16 +83,21 @@ Future enhancements (not part of the current implemented reader): persistent boo
 - [ ] Review memory/stack behavior during repeated module switching and prolonged operation.
 - [ ] Record a release version and tested firmware build details.
 
-## 5. Future expansion: phone configuration and external keyboards
+## 5. Phone-based recovery configuration
 
-These are planned follow-on features, not implemented in the current firmware.
+The first implementation is a D1-hosted recovery portal. It does not depend on the development PC, a cloud service, or an internet connection.
 
-### Phone-based configuration
-- [ ] Add a small configuration website served by the D1 over the local Wi-Fi network.
-- [ ] Allow a phone browser to edit the same settings as the touchscreen.
-- [ ] Consider a temporary setup access point for first-time Wi-Fi provisioning.
-- [ ] Require a short-lived pairing code shown on the D1 display; keep configuration local and do not expose an unauthenticated admin page to the internet.
-- [ ] Validate input and save through the existing NVS settings layer.
+- [x] Start a recovery access point on first boot when no Wi-Fi credentials exist.
+- [x] Start recovery mode after the saved Wi-Fi network fails its connection retry limit.
+- [x] Generate a unique setup SSID, WPA2 password, and six-digit configuration login code.
+- [x] Display the SSID, network password, login code, and manual portal address on the D1 touchscreen.
+- [x] Run a local DNS catch-all and HTTP captive portal so Android/iOS captive-network detection can offer the sign-in page automatically; retain a manual http://192.168.4.1 fallback.
+- [x] Require the on-screen login code, limit repeated failed attempts, and expire authenticated sessions after inactivity.
+- [x] Provide a responsive phone page for Wi-Fi credentials, brightness, screen timeout, refresh interval, browser home, GitHub owner/repository, Pi status URL, and information location.
+- [x] Validate supplied values and save settings through the existing NVS settings layer.
+- [x] Attempt the new station connection while keeping the setup access point available; stop the temporary portal only after the D1 receives an IP address.
+- [ ] Physically verify captive-portal auto-open behavior on Android and iOS, manual URL access, wrong-password retry, and successful Wi-Fi recovery.
+- [ ] Add an optional authenticated configuration page reachable over the normal home Wi-Fi network; the current web portal is intentionally active only during recovery/setup mode.
 
 ### BLE keyboard
 - [ ] Add BLE HID host support so a standard Bluetooth LE keyboard can be paired.

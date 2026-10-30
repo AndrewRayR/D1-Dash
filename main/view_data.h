@@ -16,6 +16,13 @@ enum start_screen{
 
 #define WIFI_SCAN_LIST_SIZE  15
 
+struct view_data_wifi_recovery {
+    char ssid[33];
+    char password[17];
+    char access_code[7];
+    char address[16];
+};
+
 struct view_data_wifi_st
 {
     bool   is_connected;
@@ -148,7 +155,9 @@ enum {
 
 
     VIEW_EVENT_WIFI_CFG_DELETE,
-
+    VIEW_EVENT_WIFI_RECOVERY,   // struct view_data_wifi_recovery
+    VIEW_EVENT_WIFI_RECOVERY_DONE,
+    VIEW_EVENT_REMOTE_SETTINGS_UPDATED,
 
     VIEW_EVENT_TIME_CFG_UPDATE,  //  struct view_data_time_cfg
     VIEW_EVENT_TIME_CFG_APPLY,   //  struct view_data_time_cfg

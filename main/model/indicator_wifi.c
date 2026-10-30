@@ -4,6 +4,9 @@
 #include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
+#include "esp_netif.h"
+#include "esp_random.h"
+#include "../tech/tech_recovery_portal.h"
 
 #include "lwip/err.h"
 #include "lwip/sys.h"
@@ -33,11 +36,62 @@ static SemaphoreHandle_t   __g_net_check_sem;
 static int s_retry_num = 0;
 static int wifi_retry_max  = 3;
 static bool __g_ping_done = true;
-
+static bool s_recovery_active;
+static bool s_recovery_connecting;
+static esp_netif_t *s_recovery_netif;
 
 static EventGroupHandle_t __wifi_event_group;
 
 static const char *TAG = "wifi-model";
+
+static void __wifi_recovery_start(void)
+{
+    if (s_recovery_active) return;
+
+    static const char alphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+    char ssid[33];
+    char password[17];
+    char access_code[7];
+    uint32_t random_a = esp_random();
+
+    snprintf(ssid, sizeof(ssid), "D1-Dash-Setup-%04X", (unsigned)(random_a & 0xFFFF));
+    for (size_t i = 0; i < 12; i++) {
+        password[i] = alphabet[esp_random() % (sizeof(alphabet) - 1)];
+    }
+    password[12] = '\0';
+    snprintf(access_code, sizeof(access_code), "%06lu",
+             (unsigned long)(esp_random() % 1000000UL));
+
+    wifi_config_t ap_config = {0};
+    strlcpy((char *)ap_config.ap.ssid, ssid, sizeof(ap_config.ap.ssid));
+    strlcpy((char *)ap_config.ap.password, password, sizeof(ap_config.ap.password));
+    ap_config.ap.ssid_len = strlen(ssid);
+    ap_config.ap.channel = 1;
+    ap_config.ap.max_connection = 2;
+    ap_config.ap.authmode = WIFI_AUTH_WPA2_PSK;
+    ap_config.ap.pmf_cfg.capable = true;
+    ap_config.ap.pmf_cfg.required = false;
+
+    esp_err_t err = esp_wifi_set_mode(WIFI_MODE_AP);
+    if (err == ESP_OK) err = esp_wifi_set_config(WIFI_IF_AP, &ap_config);
+    if (err == ESP_OK) err = tech_recovery_portal_start(access_code);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Could not start recovery network/portal: %s", esp_err_to_name(err));
+        esp_wifi_set_mode(WIFI_MODE_STA);
+        return;
+    }
+
+    s_recovery_active = true;
+    s_recovery_connecting = false;
+    struct view_data_wifi_recovery info = {0};
+    strlcpy(info.ssid, ssid, sizeof(info.ssid));
+    strlcpy(info.password, password, sizeof(info.password));
+    strlcpy(info.access_code, access_code, sizeof(info.access_code));
+    strlcpy(info.address, "192.168.4.1", sizeof(info.address));
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_RECOVERY,
+                      &info, sizeof(info), portMAX_DELAY);
+    ESP_LOGW(TAG, "Wi-Fi recovery network active; SSID=%s (credentials displayed on device)", ssid);
+}
 
 static int min(int a, int b) { return (a < b) ? a : b; }
 
@@ -71,7 +125,11 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
             st.rssi = 0;
             __wifi_st_set(&st);
 
-            esp_wifi_connect();
+            if (_g_wifi_model.is_cfg) {
+                esp_wifi_connect();
+            } else {
+                __wifi_recovery_start();
+            }
             break;
         }
         case WIFI_EVENT_STA_CONNECTED: {
@@ -98,7 +156,16 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
         case WIFI_EVENT_STA_DISCONNECTED: {
             ESP_LOGI(TAG, "wifi event: WIFI_EVENT_STA_DISCONNECTED");
 
-            if ( (wifi_retry_max == -1) || s_retry_num < wifi_retry_max) {
+            if (s_recovery_connecting) {
+                if (s_retry_num < wifi_retry_max) {
+                    s_retry_num++;
+                    ESP_LOGW(TAG, "Recovery Wi-Fi attempt %d failed; retrying", s_retry_num);
+                    esp_wifi_connect();
+                } else {
+                    s_recovery_connecting = false;
+                    ESP_LOGW(TAG, "Recovery Wi-Fi credentials were rejected; setup portal remains available");
+                }
+            } else if ( (wifi_retry_max == -1) || s_retry_num < wifi_retry_max) {
                 esp_wifi_connect();
                 s_retry_num++;
                 ESP_LOGI(TAG, "retry to connect to the AP");
@@ -115,6 +182,9 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
                 __wifi_st_set(&st);
 
                 esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st ), portMAX_DELAY);
+                if (_g_wifi_model.is_cfg && !s_recovery_active) {
+                    __wifi_recovery_start();
+                }
                 
                 char *p_str = "";
                 struct view_data_wifi_connet_ret_msg msg;
@@ -136,6 +206,15 @@ static void __ip_event_handler(void* arg, esp_event_base_t event_base,
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
+        if (s_recovery_active && s_recovery_connecting) {
+            ESP_LOGI(TAG, "Recovery Wi-Fi connected; shutting down temporary setup network");
+            s_recovery_connecting = false;
+            s_recovery_active = false;
+            tech_recovery_portal_stop();
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+            esp_event_post_to(view_event_handle, VIEW_EVENT_BASE,
+                              VIEW_EVENT_WIFI_RECOVERY_DONE, NULL, 0, portMAX_DELAY);
+        }
 
         //xEventGroupSetBits(__wifi_event_group, WIFI_CONNECTED_BIT);
         xSemaphoreGive(__g_net_check_sem);  //goto check network
@@ -202,6 +281,9 @@ static int __wifi_connect(const char *p_ssid, const char *p_password, int retry_
 
 static void __wifi_cfg_restore(void) 
 {
+    tech_recovery_portal_stop();
+    s_recovery_active = false;
+    s_recovery_connecting = false;
     _g_wifi_model.is_cfg = false;
     
     struct view_data_wifi_st st = {0};
@@ -218,6 +300,9 @@ static void __wifi_cfg_restore(void)
 
 static void __wifi_shutdown(void) 
 {
+    tech_recovery_portal_stop();
+    s_recovery_active = false;
+    s_recovery_connecting = false;
     _g_wifi_model.is_cfg = false;  //disable reconnect
     
     struct view_data_wifi_st st = {0};
@@ -302,7 +387,31 @@ static void __indicator_wifi_task(void *p_arg)
 
     while(1) {
 
-        xSemaphoreTake(__g_net_check_sem, pdMS_TO_TICKS(5000));
+        char pending_ssid[33] = {0};
+        char pending_password[65] = {0};
+        if (s_recovery_active && tech_recovery_portal_take_wifi(
+                pending_ssid, sizeof(pending_ssid),
+                pending_password, sizeof(pending_password))) {
+            wifi_config_t wifi_config = {0};
+            strlcpy((char *)wifi_config.sta.ssid, pending_ssid, sizeof(wifi_config.sta.ssid));
+            if (pending_password[0] != '\0') {
+                strlcpy((char *)wifi_config.sta.password, pending_password, sizeof(wifi_config.sta.password));
+                wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+            } else {
+                wifi_config.sta.threshold.authmode = WIFI_AUTH_OPEN;
+            }
+            wifi_config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
+            wifi_retry_max = 3;
+            s_retry_num = 0;
+            _g_wifi_model.is_cfg = true;
+            s_recovery_connecting = true;
+            ESP_LOGI(TAG, "Applying Wi-Fi settings received from recovery portal");
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
+            ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
+            ESP_ERROR_CHECK(esp_wifi_connect());
+        }
+
+        xSemaphoreTake(__g_net_check_sem, pdMS_TO_TICKS(1000));
         __wifi_st_get(&st);
 
         // Periodically check the network connection status
@@ -323,7 +432,7 @@ static void __indicator_wifi_task(void *p_arg)
                 }
             }
 
-        } else if(  _g_wifi_model.is_cfg && !st.is_connecting) {
+        } else if(  _g_wifi_model.is_cfg && !st.is_connecting && !s_recovery_active) {
             // Periodically check the wifi connection status
 
             // 5min retry connect 
@@ -448,6 +557,14 @@ int indicator_wifi_init(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     esp_netif_create_default_wifi_sta();
+    s_recovery_netif = esp_netif_create_default_wifi_ap();
+    if (s_recovery_netif == NULL) return ESP_FAIL;
+
+    esp_netif_dns_info_t recovery_dns = {0};
+    recovery_dns.ip.type = IPADDR_TYPE_V4;
+    IP4_ADDR(&recovery_dns.ip.u_addr.ip4, 192, 168, 4, 1);
+    ESP_ERROR_CHECK(esp_netif_set_dns_info(s_recovery_netif, ESP_NETIF_DNS_MAIN,
+                                           &recovery_dns));
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
