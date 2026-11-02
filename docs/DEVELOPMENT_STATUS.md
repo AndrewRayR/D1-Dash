@@ -226,3 +226,11 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Bootloader, app, and partition-table SHA verification passed; hard reset completed.
 - Serial boot confirmed app version caa8c40, ESP-IDF 5.4.4, SenseCAP Indicator detection, and PSRAM memory test OK.
 - The station authenticated and associated with the saved WPA3-SAE network on channel 11 (RSSI -21 dBm). No IP_EVENT_STA_GOT_IP / "got ip" event appeared in the monitor window, and connectivity checks sent 0 packets. Association is verified; DHCP/IP connectivity remains unverified and may be the remaining reason the device appears offline.
+
+## DHCP diagnostics and recovery transition follow-up (2026-11-02)
+- User confirmed the recovery AP was visible and the phone could join it; after entering credentials and saving, the Indicator remained on the recovery screen.
+- Serial capture confirmed the phone received 192.168.4.2 from the recovery AP. After submission, the station associated to the saved WPA3-SAE router but did not receive a station IP while AP+STA was active.
+- Updated station-start logic to avoid a duplicate connect request during recovery. On STA_CONNECTED, firmware checks the station DHCP-client state, starts it if stopped, and logs the state/result.
+- ESP-IDF 5.4.4 build passed and firmware was flashed to verified COM21 (ESP32-S3 rev v0.2, MAC 74:4d:bd:95:b0:28). Bootloader, app, and partition-table hashes verified; COM22 was not accessed.
+- Post-flash normal STA boot obtained 192.168.0.85/24 with gateway 192.168.0.1. DNS lookup, city/time-zone request, and NTP synchronization succeeded. ICMP received 3/5 replies (39% loss); IP/DNS/application connectivity is confirmed, but ping reliability is imperfect.
+- A fresh recovery-portal submission and resulting screen transition still require user confirmation; do not claim the recovery workflow fully verified yet.

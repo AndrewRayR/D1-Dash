@@ -141,9 +141,9 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
             st.rssi = 0;
             __wifi_st_set(&st);
 
-            if (_g_wifi_model.is_cfg) {
+            if (_g_wifi_model.is_cfg && !s_recovery_connecting) {
                 esp_wifi_connect();
-            } else {
+            } else if (!_g_wifi_model.is_cfg) {
                 __wifi_recovery_start();
             }
             break;
@@ -160,7 +160,22 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
             st.is_connected = true;
             st.is_connecting = false;
             __wifi_st_set(&st);
-            
+
+            /* Ensure the station DHCP client is active after switching from
+             * recovery AP-only mode to AP+STA. The default netif event glue
+             * normally starts it on STA_CONNECTED; explicitly recover if it
+             * is still stopped, and log its state for field diagnostics. */
+            esp_netif_dhcp_status_t dhcp_status = ESP_NETIF_DHCP_INIT;
+            esp_err_t dhcp_err = esp_netif_dhcpc_get_status(s_station_netif, &dhcp_status);
+            if (dhcp_err == ESP_OK && dhcp_status == ESP_NETIF_DHCP_STOPPED) {
+                dhcp_err = esp_netif_dhcpc_start(s_station_netif);
+                ESP_LOGW(TAG, "Station DHCP client was stopped; start result=%s",
+                         esp_err_to_name(dhcp_err));
+            } else {
+                ESP_LOGI(TAG, "Station DHCP client status=%d check=%s",
+                         (int)dhcp_status, esp_err_to_name(dhcp_err));
+            }
+
             esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st ), portMAX_DELAY);
             
             struct view_data_wifi_connet_ret_msg msg;

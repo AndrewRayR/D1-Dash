@@ -247,3 +247,12 @@ Never delete older handoff entries; append new entries so the project retains a 
 - Serial boot confirmed app version caa8c40, ESP-IDF 5.4.4, SenseCAP Indicator detection, and 8 MB PSRAM memory test OK.
 - On boot, station successfully authenticated and associated with the saved network (WPA3-SAE, channel 11, RSSI -21 dBm). However, no IP_EVENT_STA_GOT_IP / "got ip" log appeared during the monitor window, and the existing connectivity check reported 0 packets transmitted. Thus Wi-Fi association is confirmed, but DHCP/IP connectivity is not yet confirmed; do not mark recovery reconnect fully verified.
 - Next: user checks the Indicator's displayed Wi-Fi state and whether normal online features work. If still offline, investigate DHCP/IP event and connectivity-check path; the station association itself is now succeeding.
+
+### 2026-11-02 - DHCP diagnostics and recovery transition follow-up
+- User confirmed that the recovery AP was visible, phone association succeeded, and the portal accepted saved Wi-Fi credentials, but the Indicator remained on the recovery screen.
+- Serial capture established that the phone received 192.168.4.2 from the recovery AP; after form submission the station associated to the saved WPA3-SAE router, but no station IP event arrived while operating AP+STA.
+- Updated main/model/indicator_wifi.c to avoid issuing a duplicate esp_wifi_connect() from WIFI_EVENT_STA_START while a recovery reconnect is already in progress. On STA_CONNECTED, the model now checks the station DHCP-client state, starts it if stopped, and logs the status/result without exposing credentials.
+- ESP-IDF 5.4.4 build passed. Flashed to COM21 after re-identifying USB-SERIAL CH340 and confirming ESP32-S3 rev v0.2 / MAC 74:4d:bd:95:b0:28. Bootloader, app, and partition-table hashes verified; hard reset succeeded. COM22 was not accessed.
+- Post-flash serial boot confirmed the saved station connection obtained DHCP address 192.168.0.85, gateway 192.168.0.1. DNS lookup, city/time-zone request, and NTP synchronization succeeded. ICMP test received 3 of 5 replies (39% packet loss), so basic IP/DNS/application connectivity is now confirmed, while ping reliability remains imperfect.
+- The DHCP event handler is expected to post VIEW_EVENT_WIFI_RECOVERY_DONE when a recovery reconnect obtains an IP. The latest verified boot used the saved credentials in normal STA startup; a fresh portal-submit-to-home-screen cycle still needs user confirmation.
+- Git source and documentation changes are pending commit/push.
