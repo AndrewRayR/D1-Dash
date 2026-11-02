@@ -207,3 +207,9 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Changed recovery AP startup to explicitly stop the station driver, configure AP mode and credentials, restart the Wi-Fi radio, and then start the captive portal. Startup failure now attempts to restore station mode.
 - ESP-IDF 5.4.4 build passed; image size 0x223D20 bytes, 47% app partition free. git diff --check passed.
 - These fixes have not been flashed or physically tested yet. Recovery AP visibility and reconnection remain pending. COM22 remains untouched.
+## Speed display / recovery AP fixes flashed (2026-11-02)
+
+- User authorized flashing commit 7d551d5. COM21 was re-identified as USB-SERIAL CH340 and read-only esptool confirmed ESP32-S3 rev v0.2, MAC 74:4d:bd:95:b0:28, 8 MB PSRAM. COM22 was not accessed.
+- ESP-IDF 5.4.4 flash completed on COM21; bootloader, app, and partition-table hashes verified; hard reset succeeded.
+- Serial boot confirmed app version 7d551d5, SenseCAP Indicator detection, and PSRAM memory test OK. Saved station credentials did not authenticate, but the updated firmware then switched to softAP, initialized beacons, started the recovery portal with captive DNS, and started DHCP at 192.168.4.1.
+- Recovery SSID reported in serial log: D1-Dash-Setup-48D3. Phone visibility and portal access still require user confirmation. Speed display has not yet been retested on the touchscreen.

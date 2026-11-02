@@ -138,6 +138,14 @@ Never delete older handoff entries; append new entries so the project retains a 
 
 ## 9. Handoff log
 
+### 2026-11-02 — Speed display / recovery AP fixes flashed and boot-verified
+- Re-identified COM21 as USB-SERIAL CH340 (VID 1A86, PID 7523); read-only esptool identification confirmed ESP32-S3 revision v0.2, MAC 74:4d:bd:95:b0:28, 8 MB PSRAM. COM22 remained USB Serial Device (VID 2E8A, PID 000A) and was not accessed.
+- User authorized flashing. ESP-IDF 5.4.4 idf.py -p COM21 flash completed successfully; bootloader, application, and partition table hashes verified; hard reset succeeded.
+- Serial boot log confirmed app version 7d551d5, SenseCAP Indicator detection, PSRAM memory test OK, and normal startup. Saved station credentials did not authenticate; firmware then successfully switched to softAP, started the recovery configuration portal with captive DNS, and started DHCP on 192.168.4.1.
+- Serial log reported recovery SSID D1-Dash-Setup-48D3. This confirms the AP startup code reached softAP/beacon initialization and the portal/DHCP started. Actual phone discovery and connection remain user-verification items.
+- Flash and boot are agent-verified; numeric speed display, phone SSID visibility, and portal connection are not yet physically verified.
+- Next: user should check the phone Wi-Fi list for the recovery SSID shown on the Indicator, connect using the password shown on the device, and report whether the portal appears. Then test Network Monitor speed results after restoring Wi-Fi.
+
 ### 2026-11-02 — Network Monitor speed display and recovery AP fix
 - User-reported regression on the expanded Network Monitor firmware: speed test reached completion but displayed literal f characters (Down f Mbps Up f Mbps); the Wi-Fi Disconnect action worked, but reconnecting failed and entered Recovery Mode while the temporary SSID was not visible to the phone.
 - Root cause of speed display: LVGL's compact lv_label_set_text_fmt formatter does not support floating-point conversions. Updated main/tech_terminal_ui.c to round Mbps to hundredths and render integer fields.
