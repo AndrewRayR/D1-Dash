@@ -234,3 +234,12 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - ESP-IDF 5.4.4 build passed and firmware was flashed to verified COM21 (ESP32-S3 rev v0.2, MAC 74:4d:bd:95:b0:28). Bootloader, app, and partition-table hashes verified; COM22 was not accessed.
 - Post-flash normal STA boot obtained 192.168.0.85/24 with gateway 192.168.0.1. DNS lookup, city/time-zone request, and NTP synchronization succeeded. ICMP received 3/5 replies (39% loss); IP/DNS/application connectivity is confirmed, but ping reliability is imperfect.
 - A fresh recovery-portal submission and resulting screen transition still require user confirmation; do not claim the recovery workflow fully verified yet.
+
+## Network Monitor HTTPS connectivity check and DHCP gating
+- User reported the device returned to the home screen after recovery but Network Monitor still showed no internet.
+- Inspection found the previous internet indicator relied exclusively on ICMP echo replies to 8.8.8.8. ICMP loss/blocking can produce false negatives even when HTTPS works.
+- Replaced the ICMP-only indicator with an HTTPS GET to Google's generate_204 endpoint using ESP-IDF certificate-bundle validation. A 2xx response marks internet reachable. The check runs in a dedicated 8 KiB task.
+- Serial diagnostics on the first test boot exposed a timing issue: STA_CONNECTED occurs before DHCP has assigned an address. An immediate HTTPS/DNS probe therefore failed with getaddrinfo error 202. The network monitor now waits for a nonzero station IP before running its HTTPS probe.
+- Final ESP-IDF 5.4.4 build passed; app image 0x222FC0 bytes with 47% of the 4 MiB app partition free. Flashed to verified COM21 (USB-SERIAL CH340; ESP32-S3 rev v0.2, MAC 74:4d:bd:95:b0:28). Bootloader, app, and partition-table hashes verified; hard reset succeeded. COM22 was not accessed.
+- Final serial boot: station associated, DHCP assigned 192.168.0.85/24 with gateway 192.168.0.1, HTTPS connectivity probe returned ESP_OK / HTTP 204 / online=1, certificate validation succeeded, DNS and city/time-zone lookup succeeded, and NTP synchronized.
+- Hardware boot/network path is verified. User still needs to open Network Monitor on the touchscreen to confirm the displayed status updates correctly; no touchscreen interaction is claimed as tested.

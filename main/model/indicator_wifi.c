@@ -6,6 +6,8 @@
 #include "esp_wifi.h"
 #include "esp_netif.h"
 #include "esp_random.h"
+#include "esp_http_client.h"
+#include "esp_crt_bundle.h"
 #include "../tech/tech_recovery_portal.h"
 
 #include "lwip/err.h"
@@ -356,69 +358,44 @@ static void __wifi_shutdown(void)
     esp_wifi_stop();
 }
 
-static void __ping_end(esp_ping_handle_t hdl, void *args)
+static void __internet_check_task(void *arg)
 {
-    ip_addr_t target_addr;
-    uint32_t transmitted =0;
-    uint32_t received =0;
-    uint32_t total_time_ms =0 ;
-    uint32_t loss = 0;
-    esp_ping_get_profile(hdl, ESP_PING_PROF_REQUEST, &transmitted, sizeof(transmitted));
-    esp_ping_get_profile(hdl, ESP_PING_PROF_REPLY, &received, sizeof(received));
-    esp_ping_get_profile(hdl, ESP_PING_PROF_IPADDR, &target_addr, sizeof(target_addr));
-    esp_ping_get_profile(hdl, ESP_PING_PROF_DURATION, &total_time_ms, sizeof(total_time_ms));
-    
-    if( transmitted > 0 ) {
-        loss = (uint32_t)((1 - ((float)received) / transmitted) * 100);
-    } else {
-        loss = 100;
-    }
-     
-    if (IP_IS_V4(&target_addr)) {
-        printf("\n--- %s ping statistics ---\n", inet_ntoa(*ip_2_ip4(&target_addr)));
-    } else {
-        printf("\n--- %s ping statistics ---\n", inet6_ntoa(*ip_2_ip6(&target_addr)));
-    }
-    printf("%d packets transmitted, %d received, %d%% packet loss, time %dms\n",
-           transmitted, received, loss, total_time_ms);
+    (void)arg;
+    esp_http_client_config_t config = {
+        .url = "https://www.google.com/generate_204",
+        .timeout_ms = 8000,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .keep_alive_enable = false
+    };
+    esp_http_client_handle_t client = esp_http_client_init(&config);
+    esp_err_t err = client ? esp_http_client_perform(client) : ESP_ERR_NO_MEM;
+    int status = client ? esp_http_client_get_status_code(client) : 0;
+    if (client) esp_http_client_cleanup(client);
 
-    esp_ping_delete_session(hdl);
+    bool online = (err == ESP_OK && status >= 200 && status < 300);
+    ESP_LOGI(TAG, "HTTPS connectivity check: result=%s status=%d online=%d",
+             esp_err_to_name(err), status, online);
 
     struct view_data_wifi_st st;
-    if( received > 0) {
-        __wifi_st_get(&st);
-        st.is_network = true;
-        __wifi_st_set(&st);
-    } else {
-        __wifi_st_get(&st);
-        st.is_network = false;
-        __wifi_st_set(&st);
-    }
-    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST, &st, sizeof(struct view_data_wifi_st ), portMAX_DELAY);
+    __wifi_st_get(&st);
+    st.is_network = online;
+    __wifi_st_set(&st);
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
+                      &st, sizeof(st), portMAX_DELAY);
     __g_ping_done = true;
+    vTaskDelete(NULL);
 }
 
 static void __ping_start(void)
 {
-    esp_ping_config_t config = ESP_PING_DEFAULT_CONFIG();
-
-    ip_addr_t target_addr;
-    ipaddr_aton("8.8.8.8", &target_addr);
-
-    config.target_addr = target_addr;
-
-    esp_ping_callbacks_t cbs = {
-        .cb_args = NULL,
-        .on_ping_success = NULL,
-        .on_ping_timeout = NULL,
-        .on_ping_end = __ping_end
-    };
-    esp_ping_handle_t ping;
-    esp_ping_new_session(&config, &cbs, &ping);
+    if (!__g_ping_done) return;
     __g_ping_done = false;
-    esp_ping_start(ping);
+    if (xTaskCreate(__internet_check_task, "wifi_https_check", 8192,
+                    NULL, 4, NULL) != pdPASS) {
+        __g_ping_done = true;
+        ESP_LOGE(TAG, "Could not start HTTPS connectivity check task");
+    }
 }
-
 // net check
 static void __indicator_wifi_task(void *p_arg)
 {
@@ -459,24 +436,29 @@ static void __indicator_wifi_task(void *p_arg)
         __wifi_st_get(&st);
 
         // Periodically check the network connection status
-        if( st.is_connected) {
-
-            if(__g_ping_done ) {
-                if( st.is_network ) {
+        if (st.is_connected) {
+            if (__g_ping_done) {
+                esp_netif_ip_info_t ip_info = {0};
+                bool has_ip = (s_station_netif != NULL &&
+                               esp_netif_get_ip_info(s_station_netif, &ip_info) == ESP_OK &&
+                               ip_info.ip.addr != 0);
+                if (!has_ip) {
+                    /* STA_CONNECTED precedes DHCP completion. Do not mistake
+                     * that short interval for an internet outage. */
+                    cnt = 0;
+                } else if (st.is_network) {
                     cnt++;
-                    //5min check network
-                    if( cnt > 60) {
+                    if (cnt > 60) {
                         cnt = 0;
-                        ESP_LOGI(TAG, "Network normal last time, retry check network...");
+                        ESP_LOGI(TAG, "Network previously reachable; retrying HTTPS check");
                         __ping_start();
                     }
                 } else {
-                    ESP_LOGI(TAG, "Last network exception, check network...");
+                    ESP_LOGI(TAG, "Station has an IP; checking HTTPS connectivity");
                     __ping_start();
                 }
             }
-
-         } else if (_g_wifi_model.is_cfg && !s_user_disconnect &&
+        } else if (_g_wifi_model.is_cfg && !s_user_disconnect &&
                    !st.is_connecting && !s_recovery_active) {
             // Periodically check the wifi connection status
 
