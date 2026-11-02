@@ -169,7 +169,18 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
              * is still stopped, and log its state for field diagnostics. */
             esp_netif_dhcp_status_t dhcp_status = ESP_NETIF_DHCP_INIT;
             esp_err_t dhcp_err = esp_netif_dhcpc_get_status(s_station_netif, &dhcp_status);
-            if (dhcp_err == ESP_OK && dhcp_status == ESP_NETIF_DHCP_STOPPED) {
+            if (dhcp_err == ESP_OK && dhcp_status == ESP_NETIF_DHCP_STARTED) {
+                /* The station can associate while AP+STA is active but fail to
+                 * complete DHCP after the radio changes to the router channel.
+                 * Restart the client on association to force a fresh DISCOVER. */
+                dhcp_err = esp_netif_dhcpc_stop(s_station_netif);
+                ESP_LOGW(TAG, "Restarting station DHCP client after association; stop=%s",
+                         esp_err_to_name(dhcp_err));
+                if (dhcp_err == ESP_OK) {
+                    dhcp_err = esp_netif_dhcpc_start(s_station_netif);
+                }
+                ESP_LOGW(TAG, "Station DHCP restart result=%s", esp_err_to_name(dhcp_err));
+            } else if (dhcp_err == ESP_OK && dhcp_status == ESP_NETIF_DHCP_STOPPED) {
                 dhcp_err = esp_netif_dhcpc_start(s_station_netif);
                 ESP_LOGW(TAG, "Station DHCP client was stopped; start result=%s",
                          esp_err_to_name(dhcp_err));
