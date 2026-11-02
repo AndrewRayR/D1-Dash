@@ -25,7 +25,7 @@ Core design requirements:
 
 The following was checked on `DESKTOP-415LS7I`:
 
-- Latest pushed repository state before this documentation update: c1ff612 — docs: record GitHub Monitor regression pass; branch main was clean and synchronized with origin/main before recording the F1 test.
+- Latest pushed repository state before this documentation update: 3bf1f57 — docs: record F1 offline cache regression pass; branch main was clean and synchronized with origin/main before recording the Web Reader test.
 - The phone portal HTTP server stack increase from 6,144 to 12,288 bytes is committed in `98d9987`.
 - ESP-IDF 5.4.4 build, COM21 flash, and serial boot verification passed on 2026-11-02; details are recorded in `docs/DEVELOPMENT_STATUS.md` and the handoff log below.
 - The user has now physically confirmed the GitHub Monitor normal workflow on the current firmware: repository information and Actions status, Refresh, Back Home, and reopening all behaved as designed. Rate-limit/403/429 presentation was not deliberately triggered.
@@ -69,7 +69,7 @@ An authenticated phone configuration service is implemented:
 ## 5. Current next actions
 
 1. Normal-network phone portal regression is complete: the user confirmed sign-in, settings-only save, and continued display responsiveness on the newly flashed firmware.
-2. F1 offline-cache fallback is now a user-confirmed pass on the current firmware. Continue with Web Reader redirects/HTTP errors/long pages and repeated Back/Forward navigation, then full module entry/exit, touch responsiveness, automatic refresh timing, and prolonged operation. GitHub normal workflow/refresh/navigation is also user-confirmed pass; do not deliberately induce rate limits.
+2. F1 offline-cache fallback and Web Reader redirects/HTTP errors/long pages/Back-Forward navigation are now user-confirmed passes on the current firmware. Continue with repeated entry/exit across all five modules, touch responsiveness, automatic refresh timing, and prolonged operation. GitHub normal workflow/refresh/navigation is also user-confirmed pass; do not deliberately induce rate limits.
 3. Verify automatic refresh timing and prolonged operation; record the tested firmware build and release version.
 4. Separately test recovery AP/captive-portal behavior on Android/iOS, including manual URL, wrong-password retry, and Wi-Fi recovery. This remains distinct from normal-network configuration.
 5. Revisit BLE HID and USB keyboard-dongle feasibility only after the core reliability pass; do not implement optional expansions without prioritization.
@@ -176,7 +176,7 @@ Never delete older handoff entries; append new entries so the project retains a 
 - Result: PASS (user-confirmed physical test). No source-code change, build, or flash was needed for this verification.
 - The 403/429 rate-limit/access state was not deliberately triggered; avoid generating excessive API requests merely to force this state.
 - COM22 remains untouched. No hardware action was performed during this documentation update.
-- Next action: physically test Web Reader redirects, HTTP error responses, long-page readability/scrolling, and repeated Back/Forward navigation.
+- Next action: run a repeated entry/exit and touch-responsiveness pass across all five modules, then verify automatic-refresh timing and prolonged operation.
 
 ### 2026-11-02 — F1 offline-cache physical regression passed
 - User confirmed the F1 schedule loaded successfully online, then the previously loaded schedule was displayed after a subsequent refresh request failed while the device remained powered on.
@@ -184,4 +184,12 @@ Never delete older handoff entries; append new entries so the project retains a 
 - Result: PASS (user-confirmed physical test). No source-code change, build, or flash was required. The cache is intentionally RAM-only and was not expected to survive a reboot.
 - GitHub Monitor normal workflow/navigation and F1 offline fallback are both user-confirmed passes. GitHub 403/429 error messaging remains unverified and was not deliberately triggered.
 - COM22 remains untouched. No hardware action was performed during this documentation update.
-- Next action: test Web Reader redirects, HTTP errors, long-page readability/scrolling, and repeated Back/Forward navigation.
+- Next action: run a repeated entry/exit and touch-responsiveness pass across all five modules, then verify automatic-refresh timing and prolonged operation.
+
+### 2026-11-02 — Web Reader physical regression passed
+- User confirmed a one-hop HTTP redirect, HTTP 404 handling, long plain-text page readability/scrolling, and Back/Forward history across multiple pages all behaved as designed.
+- Returning Home and reopening Web Reader also worked.
+- Result: PASS (user-confirmed physical test). No source-code change, build, or flash was required.
+- The user has now confirmed normal phone setup/save, GitHub Monitor workflow/navigation, F1 offline-cache fallback, and Web Reader edge cases/navigation on the current firmware. GitHub 403/429 messaging and recovery AP/captive portal remain unverified.
+- COM22 remains untouched. No hardware action was performed during this documentation update.
+- Next action: run a repeated entry/exit and touch-responsiveness pass across all five modules, then verify automatic-refresh timing and prolonged operation.

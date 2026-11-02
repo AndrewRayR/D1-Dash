@@ -69,7 +69,7 @@ Note: public API modules (GitHub and OpenF1) enforce a five-minute minimum polli
 - [x] Extract readable text from static HTML and plain-text responses.
 - [x] Provide session-only Back/Forward history.
 - [x] User confirmed readable page text and malformed-URL rejection.
-- [ ] Final physical test of long pages, redirects, HTTP errors, and repeated navigation.
+- [x] User physically verified redirects, HTTP error handling, long-page readability/scrolling, and repeated Back/Forward navigation on the current firmware.
 
 Future enhancements (not part of the current implemented reader): persistent bookmarks/history, clickable links, stronger URL canonicalization, and optional limited image/CSS support. Pages that depend on JavaScript will not render like a full desktop browser.
 

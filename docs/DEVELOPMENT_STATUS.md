@@ -157,7 +157,7 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - User confirmed the newly flashed firmware booted to the D1-Dash home screen.
 - User completed the normal-network PHONE SETUP regression from a phone on the same Wi-Fi: authenticated, saved a settings-only change, and confirmed the Indicator remained usable and responsive afterward.
 - Result: PASS (user-confirmed physical test). No code changes were needed; COM22 was not touched.
-- Remaining physical checks: Web Reader redirects, HTTP errors and long pages; repeated module navigation; automatic refresh timing/soak; recovery AP/captive portal behavior. F1 offline-cache fallback is now user-confirmed pass. GitHub 403/429 rate-limit messaging remains unverified and was not deliberately triggered.
+- Remaining physical checks: repeated module navigation; automatic refresh timing/soak; recovery AP/captive portal behavior. Web Reader edge cases/navigation and F1 offline-cache fallback are now user-confirmed passes. GitHub 403/429 rate-limit messaging remains unverified and was not deliberately triggered.
 
 ## GitHub Monitor physical regression (2026-11-02)
 
@@ -172,3 +172,10 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - The UI showed the cached/offline state as designed. This validates the bounded 900-byte, 30-minute RAM fallback path on the current COM21 firmware.
 - Result: PASS (user-confirmed physical test). The device was not rebooted during the test; cache persistence across reboot is not intended because the cache is RAM-only.
 - Next physical test: Web Reader redirects, HTTP error responses, long-page readability/scrolling, and repeated Back/Forward navigation.
+
+## Web Reader physical regression (2026-11-02)
+
+- User confirmed the Web Reader handled a one-hop HTTP redirect, an HTTP 404 response, a long plain-text page with scrolling, and Back/Forward history across multiple pages as designed.
+- Returning Home and reopening Web Reader also behaved correctly.
+- Result: PASS (user-confirmed physical test). No source-code change, build, or flash was required.
+- Next physical test: repeat entry/exit across all five modules and verify touch responsiveness, followed by automatic-refresh timing and prolonged operation.
