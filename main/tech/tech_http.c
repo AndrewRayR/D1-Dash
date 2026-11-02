@@ -1,6 +1,7 @@
 #include "tech_http.h"
 #include <stdbool.h>
 #include <string.h>
+#include <strings.h>
 #include "esp_crt_bundle.h"
 #include "esp_http_client.h"
 
@@ -14,6 +15,12 @@ typedef struct {
 static esp_err_t http_event_handler(esp_http_client_event_t *event)
 {
     response_context_t *context = event->user_data;
+    if (event->event_id == HTTP_EVENT_ON_HEADER && event->header_key != NULL &&
+        event->header_value != NULL && strcasecmp(event->header_key, "Link") == 0) {
+        strlcpy(context->response->link_header, event->header_value,
+                sizeof(context->response->link_header));
+        return ESP_OK;
+    }
     if (event->event_id != HTTP_EVENT_ON_DATA || event->data_len <= 0) {
         return ESP_OK;
     }

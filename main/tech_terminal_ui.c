@@ -2,6 +2,10 @@
 #include "ui.h"
 #include "tech_settings.h"
 #include "tech_http.h"
+#include "tech_speed_test.h"
+#include "indicator_wifi.h"
+#include "esp_http_client.h"
+#include "esp_timer.h"
 #include "lv_port.h"
 #include "cJSON.h"
 #include "view_data.h"
@@ -35,6 +39,8 @@ static lv_obj_t *network_ssid;
 static lv_obj_t *network_signal;
 static lv_obj_t *network_ip;
 static lv_obj_t *network_gateway;
+static lv_obj_t *network_speed;
+static bool speed_request_active;
 static lv_obj_t *wifi_manager_page;
 static lv_obj_t *wifi_manager_list;
 static lv_obj_t *wifi_manager_status;
@@ -56,6 +62,7 @@ static lv_timer_t *f1_refresh_timer;
 #define TECH_EVENT_PI_RESULT 0x4001
 #define TECH_EVENT_WEB_RESULT 0x4002
 #define TECH_EVENT_GITHUB_RESULT 0x4003
+#define TECH_EVENT_SPEED_RESULT 0x4005
 #define TECH_EVENT_F1_RESULT 0x4004
 #define WEB_HISTORY_MAX 8
 static lv_obj_t *web_page;
@@ -71,7 +78,6 @@ static lv_obj_t *github_page;
 static lv_obj_t *github_status;
 static lv_obj_t *github_details;
 static bool github_request_active;
-static char github_web_url[160];
 static lv_obj_t *f1_page;
 static lv_obj_t *f1_status;
 static lv_obj_t *f1_details;
@@ -96,10 +102,14 @@ typedef struct {
 typedef struct {
     bool ok;
     char title[80];
-    char details[380];
-    char html_url[160];
+    char details[1200];
     char message[96];
 } github_result_t;
+typedef struct {
+    bool ok;
+    tech_speed_test_result_t speed;
+    char message[96];
+} speed_result_t;
 typedef struct {
     bool ok;
     bool clock_valid;
@@ -121,6 +131,9 @@ static void wifi_manager_close_dialog(void);
 static void wifi_manager_open_page(void);
 static void open_pi_page(void);
 static void network_refresh_event(lv_event_t *event);
+static void network_disconnect_event(lv_event_t *event);
+static void network_speed_event(lv_event_t *event);
+static void speed_result_event(void *handler_args, esp_event_base_t base, int32_t id, void *event_data);
 static void pi_refresh_event(lv_event_t *event);
 static void pi_result_event(void *handler_args, esp_event_base_t base,
                             int32_t id, void *event_data);
@@ -188,6 +201,8 @@ void tech_terminal_ui_init(void)
         VIEW_EVENT_BASE, TECH_EVENT_WEB_RESULT, web_result_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
         VIEW_EVENT_BASE, TECH_EVENT_GITHUB_RESULT, github_result_event, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
+        VIEW_EVENT_BASE, TECH_EVENT_SPEED_RESULT, speed_result_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
         VIEW_EVENT_BASE, TECH_EVENT_F1_RESULT, f1_result_event, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register_with(view_event_handle,
@@ -379,10 +394,14 @@ static void open_network_page(void)
         lv_obj_set_pos(network_ip, 4, 90);
         network_gateway = make_label(panel, "Gateway  /  --", 14, 0x91A3B4);
         lv_obj_set_pos(network_gateway, 4, 130);
+        network_speed = make_label(panel, "Cloudflare speed  /  Not tested", 13, 0x42D6C3);
+        lv_obj_set_width(network_speed, 400);
+        lv_label_set_long_mode(network_speed, LV_LABEL_LONG_WRAP);
+        lv_obj_set_pos(network_speed, 4, 168);
 
         lv_obj_t *manage = lv_btn_create(network_page);
-        lv_obj_set_size(manage, 210, 48);
-        lv_obj_align(manage, LV_ALIGN_BOTTOM_LEFT, 22, -28);
+        lv_obj_set_size(manage, 136, 46);
+        lv_obj_align(manage, LV_ALIGN_BOTTOM_LEFT, 12, -26);
         lv_obj_set_style_bg_color(manage, lv_color_hex(0x17304A), 0);
         lv_obj_set_style_border_width(manage, 0, 0);
         lv_obj_set_style_radius(manage, 10, 0);
@@ -390,15 +409,25 @@ static void open_network_page(void)
         lv_obj_t *manage_text = make_label(manage, "MANAGE WI-FI", 13, 0x55A8FF);
         lv_obj_center(manage_text);
 
-        lv_obj_t *refresh = lv_btn_create(network_page);
-        lv_obj_set_size(refresh, 210, 48);
-        lv_obj_align(refresh, LV_ALIGN_BOTTOM_RIGHT, -22, -28);
-        lv_obj_set_style_bg_color(refresh, lv_color_hex(0x174336), 0);
-        lv_obj_set_style_border_width(refresh, 0, 0);
-        lv_obj_set_style_radius(refresh, 10, 0);
-        lv_obj_add_event_cb(refresh, network_refresh_event, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *refresh_text = make_label(refresh, "REFRESH", 13, 0x42D6C3);
-        lv_obj_center(refresh_text);
+        lv_obj_t *speed = lv_btn_create(network_page);
+        lv_obj_set_size(speed, 136, 46);
+        lv_obj_align(speed, LV_ALIGN_BOTTOM_MID, 0, -26);
+        lv_obj_set_style_bg_color(speed, lv_color_hex(0x174336), 0);
+        lv_obj_set_style_border_width(speed, 0, 0);
+        lv_obj_set_style_radius(speed, 10, 0);
+        lv_obj_add_event_cb(speed, network_speed_event, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *speed_text = make_label(speed, "SPEED TEST", 12, 0x42D6C3);
+        lv_obj_center(speed_text);
+
+        lv_obj_t *disconnect = lv_btn_create(network_page);
+        lv_obj_set_size(disconnect, 136, 46);
+        lv_obj_align(disconnect, LV_ALIGN_BOTTOM_RIGHT, -12, -26);
+        lv_obj_set_style_bg_color(disconnect, lv_color_hex(0x492B35), 0);
+        lv_obj_set_style_border_width(disconnect, 0, 0);
+        lv_obj_set_style_radius(disconnect, 10, 0);
+        lv_obj_add_event_cb(disconnect, network_disconnect_event, LV_EVENT_CLICKED, NULL);
+        lv_obj_t *disconnect_text = make_label(disconnect, "DISCONNECT", 12, 0xFF9EAA);
+        lv_obj_center(disconnect_text);
     }
     active_page = network_page;
     network_refresh();
@@ -422,10 +451,70 @@ static void open_wifi_manager(lv_event_t *event)
     wifi_manager_open_page();
 }
 
-static void network_refresh_event(lv_event_t *event)
+
+static void network_disconnect_event(lv_event_t *event)
 {
     (void)event;
-    network_refresh();
+    esp_err_t err = indicator_wifi_disconnect_user();
+    if (err == ESP_OK) {
+        lv_label_set_text(network_ssid, "Wi-Fi  /  Disconnecting...");
+        lv_label_set_text(network_signal, "Signal  /  --");
+        lv_label_set_text(network_ip, "IP address  /  --");
+        lv_label_set_text(network_gateway, "Gateway  /  --");
+        lv_label_set_text(network_speed, "Speed test unavailable while disconnected");
+    } else {
+        lv_label_set_text(network_speed, "Disconnect failed; try again");
+    }
+}
+
+static void network_speed_task(void *arg)
+{
+    (void)arg;
+    speed_result_t result = {0};
+    esp_err_t err = tech_speed_test_run(&result.speed);
+    if (err == ESP_OK) result.ok = true;
+    else strlcpy(result.message, "Speed test failed; check internet connection", sizeof(result.message));
+    speed_request_active = false;
+    esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, TECH_EVENT_SPEED_RESULT,
+                      &result, sizeof(result), pdMS_TO_TICKS(1000));
+    vTaskDelete(NULL);
+}
+
+static void network_speed_event(lv_event_t *event)
+{
+    (void)event;
+    if (speed_request_active) return;
+    wifi_ap_record_t ap = {0};
+    if (esp_wifi_sta_get_ap_info(&ap) != ESP_OK) {
+        lv_label_set_text(network_speed, "Connect to Wi-Fi before testing");
+        return;
+    }
+    speed_request_active = true;
+    lv_label_set_text(network_speed, "Speed test running...");
+    if (xTaskCreate(network_speed_task, "wifi_speed", 12288, NULL, 4, NULL) != pdPASS) {
+        speed_request_active = false;
+        lv_label_set_text(network_speed, "Could not start speed test");
+    }
+}
+
+static void speed_result_event(void *handler_args, esp_event_base_t base,
+                               int32_t id, void *event_data)
+{
+    (void)handler_args;
+    (void)base;
+    if (id != TECH_EVENT_SPEED_RESULT || event_data == NULL) return;
+    speed_result_t *result = event_data;
+    lv_port_sem_take();
+    if (network_page != NULL && active_page == network_page && network_speed != NULL) {
+        if (result->ok) {
+            lv_label_set_text_fmt(network_speed, "Cloudflare  /  Down %.2f Mbps   Up %.2f Mbps",
+                                  result->speed.download_mbps,
+                                  result->speed.upload_mbps);
+        } else {
+            lv_label_set_text(network_speed, result->message);
+        }
+    }
+    lv_port_sem_give();
 }
 
 static void wifi_manager_refresh_event(lv_event_t *event)
@@ -1283,6 +1372,126 @@ static bool github_component_valid(const char *text)
     return true;
 }
 
+
+static unsigned long github_commit_total(const char *link_header, cJSON *commits)
+{
+    const char *last = strstr(link_header, "rel=\"last\"");
+    if (last == NULL) last = strstr(link_header, "rel=last");
+    if (last != NULL) {
+        const char *page = last;
+        while (page > link_header && strncmp(page, "page=", 5) != 0) page--;
+        if (page > link_header) {
+            unsigned long count = strtoul(page + 5, NULL, 10);
+            if (count > 0) return count;
+        }
+    }
+    return cJSON_IsArray(commits) ? (unsigned long)cJSON_GetArraySize(commits) : 0;
+}
+
+static void github_format_age(const char *iso_date, char *out, size_t capacity)
+{
+    int year, month, day, hour, minute, second;
+    if (sscanf(iso_date, "%d-%d-%dT%d:%d:%d", &year, &month, &day,
+               &hour, &minute, &second) != 6) {
+        strlcpy(out, "unknown", capacity);
+        return;
+    }
+    int adjusted_year = year - (month <= 2);
+    int era = (adjusted_year >= 0 ? adjusted_year : adjusted_year - 399) / 400;
+    unsigned year_of_era = (unsigned)(adjusted_year - era * 400);
+    unsigned adjusted_month = (unsigned)(month + (month > 2 ? -3 : 9));
+    unsigned day_of_year = (153 * adjusted_month + 2) / 5 + (unsigned)day - 1;
+    unsigned day_of_era = year_of_era * 365 + year_of_era / 4 -
+                          year_of_era / 100 + day_of_year;
+    int64_t committed = (int64_t)era * 146097 + (int64_t)day_of_era - 719468;
+    committed = committed * 86400 + hour * 3600 + minute * 60 + second;
+    time_t now = time(NULL);
+    if (committed <= 0 || now <= 0 || (int64_t)now < committed) {
+        strlcpy(out, "time unavailable", capacity);
+        return;
+    }
+    long age = (long)((int64_t)now - committed);
+    if (age < 60) snprintf(out, capacity, "just now");
+    else if (age < 3600) snprintf(out, capacity, "%ldm ago", age / 60);
+    else if (age < 86400) snprintf(out, capacity, "%ldh ago", age / 3600);
+    else if (age < 86400L * 30) snprintf(out, capacity, "%ldd ago", age / 86400);
+    else snprintf(out, capacity, "%ldw ago", age / (86400L * 7));
+}
+
+static void github_append_commit_info(const char *owner, const char *repo,
+                                      char *details, size_t capacity)
+{
+    char url[360];
+    snprintf(url, sizeof(url),
+             "https://api.github.com/repos/%s/%s/commits?per_page=1", owner, repo);
+    tech_http_response_t *response = calloc(1, sizeof(*response));
+    if (response == NULL) return;
+    esp_err_t err = tech_http_get(url, "application/vnd.github+json", response);
+    if (err != ESP_OK || response->status_code != 200) {
+        size_t used = strlen(details);
+        if (used < capacity) strlcat(details, "\nCommits  unavailable", capacity);
+        free(response);
+        return;
+    }
+
+    cJSON *commits = cJSON_Parse(response->body);
+    unsigned long total = github_commit_total(response->link_header, commits);
+    cJSON *latest = cJSON_IsArray(commits) ? cJSON_GetArrayItem(commits, 0) : NULL;
+    cJSON *sha_item = cJSON_GetObjectItemCaseSensitive(latest, "sha");
+    cJSON *commit = cJSON_GetObjectItemCaseSensitive(latest, "commit");
+    cJSON *committer = cJSON_GetObjectItemCaseSensitive(commit, "committer");
+    cJSON *date_item = cJSON_GetObjectItemCaseSensitive(committer, "date");
+    char sha[48] = {0};
+    char age[32] = "unknown";
+    if (cJSON_IsString(sha_item) && sha_item->valuestring != NULL) {
+        strlcpy(sha, sha_item->valuestring, sizeof(sha));
+    }
+    if (cJSON_IsString(date_item) && date_item->valuestring != NULL) {
+        github_format_age(date_item->valuestring, age, sizeof(age));
+    }
+    char summary[128];
+    snprintf(summary, sizeof(summary), "\nCommits  %lu\nLast commit  %s", total, age);
+    strlcat(details, summary, capacity);
+    cJSON_Delete(commits);
+    free(response);
+
+    if (sha[0] == '\0') return;
+    snprintf(url, sizeof(url),
+             "https://api.github.com/repos/%s/%s/commits/%s", owner, repo, sha);
+    response = calloc(1, sizeof(*response));
+    if (response == NULL) return;
+    err = tech_http_get(url, "application/vnd.github+json", response);
+    if (err != ESP_OK || response->status_code != 200) {
+        free(response);
+        return;
+    }
+    cJSON *detail = cJSON_Parse(response->body);
+    free(response);
+    cJSON *files = cJSON_GetObjectItemCaseSensitive(detail, "files");
+    size_t used = strlen(details);
+    if (used < capacity) strlcat(details, "\nChanged files:", capacity);
+    unsigned shown = 0;
+    if (cJSON_IsArray(files)) {
+        cJSON *file = NULL;
+        cJSON_ArrayForEach(file, files) {
+            cJSON *filename = cJSON_GetObjectItemCaseSensitive(file, "filename");
+            if (!cJSON_IsString(filename) || filename->valuestring == NULL) continue;
+            char line[128];
+            snprintf(line, sizeof(line), "\n- %.112s", filename->valuestring);
+            if (strlen(details) + strlen(line) + 1 >= capacity) break;
+            strlcat(details, line, capacity);
+            if (++shown >= 8) break;
+        }
+    }
+    if (shown == 0 && strlen(details) + 18 < capacity) {
+        strlcat(details, "\n- Not available", capacity);
+    } else if (cJSON_IsArray(files) && cJSON_GetArraySize(files) > shown &&
+               strlen(details) + 20 < capacity) {
+        strlcat(details, "\n- ...more files", capacity);
+    }
+    cJSON_Delete(detail);
+}
+
 static void github_append_latest_workflow(const char *owner, const char *repo,
                                              char *details, size_t capacity)
 {
@@ -1291,60 +1500,51 @@ static void github_append_latest_workflow(const char *owner, const char *repo,
              "https://api.github.com/repos/%s/%s/actions/runs?per_page=1", owner, repo);
     tech_http_response_t *response = calloc(1, sizeof(*response));
     if (response == NULL) return;
-
     esp_err_t err = tech_http_get(url, "application/vnd.github+json", response);
     size_t used = strlen(details);
-    if (used >= capacity) {
-        free(response);
-        return;
-    }
+    if (used >= capacity) { free(response); return; }
     if (err != ESP_OK) {
-        snprintf(details + used, capacity - used, "\n\nWorkflow status unavailable (network error)");
+        strlcat(details, "\n\nWorkflow status unavailable (network error)", capacity);
         free(response);
         return;
     }
     if (response->status_code == 403 || response->status_code == 429) {
-        snprintf(details + used, capacity - used,
-                 "\n\nWorkflow status unavailable (GitHub rate limit or permissions)");
+        strlcat(details, "\n\nWorkflow status unavailable (rate limit/permissions)", capacity);
         free(response);
         return;
     }
     if (response->status_code != 200) {
-        snprintf(details + used, capacity - used,
-                 "\n\nWorkflow API returned HTTP %d", response->status_code);
+        char line[64];
+        snprintf(line, sizeof(line), "\n\nWorkflow API HTTP %d", response->status_code);
+        strlcat(details, line, capacity);
         free(response);
         return;
     }
-
     cJSON *root = cJSON_Parse(response->body);
     free(response);
     cJSON *runs = cJSON_GetObjectItemCaseSensitive(root, "workflow_runs");
     cJSON *run = cJSON_IsArray(runs) ? cJSON_GetArrayItem(runs, 0) : NULL;
     if (run == NULL) {
-        snprintf(details + used, capacity - used, "\n\nNo workflow runs found");
+        strlcat(details, "\n\nNo workflow runs found", capacity);
         cJSON_Delete(root);
         return;
     }
     cJSON *name = cJSON_GetObjectItemCaseSensitive(run, "name");
     cJSON *status = cJSON_GetObjectItemCaseSensitive(run, "status");
     cJSON *conclusion = cJSON_GetObjectItemCaseSensitive(run, "conclusion");
-    cJSON *updated = cJSON_GetObjectItemCaseSensitive(run, "updated_at");
-    const char *run_name = cJSON_IsString(name) && name->valuestring ?
-                           name->valuestring : "Workflow";
-    const char *run_status = cJSON_IsString(status) && status->valuestring ?
-                             status->valuestring : "unknown";
-    const char *run_conclusion = cJSON_IsString(conclusion) && conclusion->valuestring ?
-                                 conclusion->valuestring : "pending";
-    const char *date = cJSON_IsString(updated) && updated->valuestring ?
-                       updated->valuestring : "unknown";
-    snprintf(details + used, capacity - used,
-             "\n\nLatest workflow\n%.48s: %.16s / %.16s\n%.19s",
-             run_name, run_status, run_conclusion, date);
+    const char *run_name = cJSON_IsString(name) && name->valuestring ? name->valuestring : "Workflow";
+    const char *run_status = cJSON_IsString(status) && status->valuestring ? status->valuestring : "unknown";
+    const char *run_conclusion = cJSON_IsString(conclusion) && conclusion->valuestring ? conclusion->valuestring : "pending";
+    char line[160];
+    snprintf(line, sizeof(line), "\n\nLatest workflow\n%.48s: %.16s / %.16s",
+             run_name, run_status, run_conclusion);
+    strlcat(details, line, capacity);
     cJSON_Delete(root);
 }
 
 static void github_fetch_task(void *arg)
 {
+    (void)arg;
     github_result_t result = {0};
     tech_settings_t settings;
     if (tech_settings_get(&settings) != ESP_OK || !settings.github_owner[0] ||
@@ -1373,8 +1573,7 @@ static void github_fetch_task(void *arg)
     }
     if (response->status_code != 200) {
         if (response->status_code == 403 || response->status_code == 429) {
-            strlcpy(result.message, "GitHub API rate limit or access restriction; retry later",
-                    sizeof(result.message));
+            strlcpy(result.message, "GitHub API rate limit or access restriction; retry later", sizeof(result.message));
         } else {
             snprintf(result.message, sizeof(result.message), "GitHub returned HTTP %d", response->status_code);
         }
@@ -1391,26 +1590,24 @@ static void github_fetch_task(void *arg)
     cJSON *description = cJSON_GetObjectItemCaseSensitive(root, "description");
     cJSON *stars = cJSON_GetObjectItemCaseSensitive(root, "stargazers_count");
     cJSON *issues = cJSON_GetObjectItemCaseSensitive(root, "open_issues_count");
-    cJSON *updated = cJSON_GetObjectItemCaseSensitive(root, "updated_at");
-    cJSON *html_url = cJSON_GetObjectItemCaseSensitive(root, "html_url");
+    cJSON *forks = cJSON_GetObjectItemCaseSensitive(root, "forks_count");
+    cJSON *watchers = cJSON_GetObjectItemCaseSensitive(root, "subscribers_count");
     if (cJSON_IsString(full_name) && cJSON_IsNumber(stars) && cJSON_IsNumber(issues)) {
         strlcpy(result.title, full_name->valuestring, sizeof(result.title));
-        const char *desc = cJSON_IsString(description) && description->valuestring ?
-                           description->valuestring : "No description";
-        const char *date = cJSON_IsString(updated) && updated->valuestring ?
-                           updated->valuestring : "Unknown";
+        const char *desc = cJSON_IsString(description) && description->valuestring ? description->valuestring : "No description";
         snprintf(result.details, sizeof(result.details),
-            "Stars  %lld\nOpen issues  %lld\nUpdated  %.24s\n\n%.150s",
-            (long long)stars->valuedouble, (long long)issues->valuedouble, date, desc);
-        if (cJSON_IsString(html_url) && html_url->valuestring) {
-            strlcpy(result.html_url, html_url->valuestring, sizeof(result.html_url));
-        }
+            "Stars  %lld\nForks  %lld\nWatching  %lld\nOpen issues  %lld\n\n%.130s",
+            (long long)stars->valuedouble,
+            cJSON_IsNumber(forks) ? (long long)forks->valuedouble : 0LL,
+            cJSON_IsNumber(watchers) ? (long long)watchers->valuedouble : 0LL,
+            (long long)issues->valuedouble, desc);
         result.ok = true;
     } else {
         strlcpy(result.message, "GitHub response is missing repository fields", sizeof(result.message));
     }
     cJSON_Delete(root);
     if (result.ok) {
+        github_append_commit_info(owner, repo, result.details, sizeof(result.details));
         github_append_latest_workflow(owner, repo, result.details, sizeof(result.details));
     }
 
@@ -1449,7 +1646,6 @@ static void github_result_event(void *handler_args, esp_event_base_t base,
             lv_label_set_text(github_status, result->title);
             lv_label_set_text(github_details, result->details);
             lv_obj_set_style_text_color(github_status, lv_color_hex(0x42D6C3), 0);
-            strlcpy(github_web_url, result->html_url, sizeof(github_web_url));
         } else {
             lv_label_set_text(github_status, "REPOSITORY UNAVAILABLE");
             lv_label_set_text(github_details, result->message);
@@ -1457,15 +1653,6 @@ static void github_result_event(void *handler_args, esp_event_base_t base,
         }
     }
     lv_port_sem_give();
-}
-
-static void github_open_web_event(lv_event_t *event)
-{
-    (void)event;
-    if (github_web_url[0] == '\0') return;
-    open_web_page();
-    lv_textarea_set_text(web_url_field, github_web_url);
-    web_start_fetch(github_web_url, true);
 }
 
 static void open_github_page(void)
@@ -1501,7 +1688,8 @@ static void open_github_page(void)
         lv_obj_set_style_border_color(panel, lv_color_hex(0x2A3B49), 0);
         lv_obj_set_style_radius(panel, 14, 0);
         lv_obj_set_style_pad_all(panel, 16, 0);
-        lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_set_scroll_dir(panel, LV_DIR_VER);
+        lv_obj_set_scrollbar_mode(panel, LV_SCROLLBAR_MODE_AUTO);
         github_status = make_label(panel, "READY", 15, 0x42D6C3);
         lv_obj_set_pos(github_status, 4, 4);
         lv_obj_set_width(github_status, 390);
@@ -1512,22 +1700,14 @@ static void open_github_page(void)
         lv_obj_set_pos(github_details, 4, 42);
 
         lv_obj_t *refresh = lv_btn_create(github_page);
-        lv_obj_set_size(refresh, 196, 46);
-        lv_obj_align(refresh, LV_ALIGN_BOTTOM_LEFT, 24, -22);
+        lv_obj_set_size(refresh, 400, 46);
+        lv_obj_align(refresh, LV_ALIGN_BOTTOM_MID, 0, -22);
         lv_obj_set_style_bg_color(refresh, lv_color_hex(0x174336), 0);
         lv_obj_set_style_border_width(refresh, 0, 0);
         lv_obj_add_event_cb(refresh, github_refresh_event, LV_EVENT_CLICKED, NULL);
         lv_obj_t *refresh_text = make_label(refresh, "REFRESH", 13, 0x42D6C3);
         lv_obj_center(refresh_text);
 
-        lv_obj_t *open_web = lv_btn_create(github_page);
-        lv_obj_set_size(open_web, 196, 46);
-        lv_obj_align(open_web, LV_ALIGN_BOTTOM_RIGHT, -24, -22);
-        lv_obj_set_style_bg_color(open_web, lv_color_hex(0x17304A), 0);
-        lv_obj_set_style_border_width(open_web, 0, 0);
-        lv_obj_add_event_cb(open_web, github_open_web_event, LV_EVENT_CLICKED, NULL);
-        lv_obj_t *open_text = make_label(open_web, "OPEN IN WEB", 13, 0x55A8FF);
-        lv_obj_center(open_text);
     }
     active_page = github_page;
     lv_scr_load(github_page);

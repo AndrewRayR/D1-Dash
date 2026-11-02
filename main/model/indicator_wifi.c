@@ -39,6 +39,7 @@ static bool __g_ping_done = true;
 static bool s_recovery_active;
 static bool s_recovery_connecting;
 static bool s_remote_portal_active;
+static bool s_user_disconnect;
 static esp_netif_t *s_recovery_netif;
 static esp_netif_t *s_station_netif;
 
@@ -163,7 +164,13 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
         case WIFI_EVENT_STA_DISCONNECTED: {
             ESP_LOGI(TAG, "wifi event: WIFI_EVENT_STA_DISCONNECTED");
 
-            if (s_recovery_connecting) {
+            if (s_user_disconnect) {
+                struct view_data_wifi_st st = {0};
+                __wifi_st_set(&st);
+                esp_event_post_to(view_event_handle, VIEW_EVENT_BASE, VIEW_EVENT_WIFI_ST,
+                                  &st, sizeof(st), portMAX_DELAY);
+                ESP_LOGI(TAG, "Wi-Fi disconnected by user; automatic reconnect suppressed");
+            } else if (s_recovery_connecting) {
                 if (s_retry_num < wifi_retry_max) {
                     s_retry_num++;
                     ESP_LOGW(TAG, "Recovery Wi-Fi attempt %d failed; retrying", s_retry_num);
@@ -253,6 +260,7 @@ static int __wifi_scan(wifi_ap_record_t *p_ap_info, uint16_t number)
 
 static int __wifi_connect(const char *p_ssid, const char *p_password, int retry_num)
 {
+    s_user_disconnect = false;
     wifi_retry_max = retry_num; //todo
     s_retry_num =0;
 
@@ -439,7 +447,8 @@ static void __indicator_wifi_task(void *p_arg)
                 }
             }
 
-        } else if(  _g_wifi_model.is_cfg && !st.is_connecting && !s_recovery_active) {
+         } else if (_g_wifi_model.is_cfg && !s_user_disconnect &&
+                   !st.is_connecting && !s_recovery_active) {
             // Periodically check the wifi connection status
 
             // 5min retry connect 
@@ -672,4 +681,18 @@ int indicator_wifi_init(void)
     }
 
     return 0;
+}
+
+
+esp_err_t indicator_wifi_disconnect_user(void)
+{
+    s_user_disconnect = true;
+    s_retry_num = wifi_retry_max;
+    esp_err_t err = esp_wifi_disconnect();
+    if (err == ESP_ERR_WIFI_NOT_CONNECT) err = ESP_OK;
+    if (err != ESP_OK) {
+        s_user_disconnect = false;
+        return err;
+    }
+    return ESP_OK;
 }

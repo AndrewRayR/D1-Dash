@@ -23,6 +23,9 @@ This roadmap separates features already implemented from checks that still requi
 - [x] Join a selected network using the on-screen password keyboard.
 - [x] Handle scan/connect results through the view event system.
 - [x] User physically verified the Wi-Fi Manager workflow and navigation.
+- [x] Add a bounded, user-triggered download/upload speed test using a worker task.
+- [x] Add explicit Wi-Fi disconnect with automatic reconnect suppression; reconnect through Wi-Fi Manager.
+- [ ] Physically verify speed-test results, disconnect persistence, and manual reconnection on the D1.
 
 ### Settings
 - [x] Persist settings in NVS with schema validation and migration.
@@ -51,7 +54,12 @@ Note: public API modules (GitHub and OpenF1) enforce a five-minute minimum polli
 - [x] Move HTTPS and JSON work off the LVGL task.
 - [x] Fix the stale-screen lifecycle bug and increase the worker stack after diagnosing black-screen failures.
 - [x] User confirmed the module opens after the crash fix.
-- [x] User physically verified repository information and Actions status, Refresh, Back Home, and reopening GitHub Monitor on the current firmware. Rate-limit/403/429 messaging was not deliberately triggered and remains unverified.
+- [x] User physically verified repository information and Actions status, Refresh, Back Home, and reopening GitHub Monitor on the previous firmware. Rate-limit/403/429 messaging was not deliberately triggered and remains unverified.
+- [x] Add repository-wide commit count using GitHub commits pagination metadata.
+- [x] Add latest commit age and a filename-only list of changed files in the latest commit; file contents are not displayed.
+- [x] Add fork count and watcher/subscriber count.
+- [x] Remove the Open In Web action; retain manual Refresh and Actions status.
+- [ ] Physically verify commit count/age, changed filenames, forks, watchers, and absence of Open In Web on the updated firmware.
 
 ### Formula 1
 - [x] Fetch race sessions from OpenF1 in a worker task.
@@ -79,7 +87,7 @@ Future enhancements (not part of the current implemented reader): persistent boo
 - [x] Bound HTTP response size and request timeout; verify TLS certificates.
 - [x] Add module loading/error states and task-creation failure handling.
 - [x] Document the Windows/ESP-IDF build process.
-- [ ] Complete final physical checks listed above.
+- [ ] Complete final physical checks listed above, including the new Network Monitor and GitHub Monitor features.
 - [ ] Review memory/stack behavior during repeated module switching and prolonged operation.
 - [ ] Record a release version and tested firmware build details.
 

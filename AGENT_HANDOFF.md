@@ -193,3 +193,15 @@ Never delete older handoff entries; append new entries so the project retains a 
 - The user has now confirmed normal phone setup/save, GitHub Monitor workflow/navigation, F1 offline-cache fallback, and Web Reader edge cases/navigation on the current firmware. GitHub 403/429 messaging and recovery AP/captive portal remain unverified.
 - COM22 remains untouched. No hardware action was performed during this documentation update.
 - Next action: run a repeated entry/exit and touch-responsiveness pass across all five modules, then verify automatic-refresh timing and prolonged operation.
+
+
+### 2026-11-02 ? Network Monitor and GitHub Monitor feature expansion
+- User requested download/upload speed testing and an optional Wi-Fi disconnect action in Network Monitor; GitHub repository-wide commit count, age of latest commit, changed filenames only, fork count, watcher count, and removal of OPEN IN WEB.
+- Network Monitor implementation: added a bounded Cloudflare speed test using 500,000 download bytes and 200,000 upload bytes; runs in a worker task with TLS certificate verification and a 20-second per-request timeout. Added Wi-Fi disconnect action and explicit suppression of both event-handler and background-task automatic reconnect. User can reconnect through the existing Wi-Fi Manager.
+- GitHub Monitor implementation: reads forks_count and subscribers_count, obtains repository-wide commit count from the commits API pagination Link header, calculates latest-commit age from the UTC committer timestamp, and fetches latest commit metadata to display changed filenames only. File contents are not rendered. Existing Actions summary and manual refresh remain. Removed the OPEN IN WEB control.
+- Extended the shared HTTP response to capture the Link response header. New speed-test service is in main/tech/tech_speed_test.c and main/tech/tech_speed_test.h.
+- Validation: git diff --check passed. ESP-IDF 5.4.4 build passed; generated build/indicator_basis.bin size 0x223CA0, leaving 47% of the 4 MiB app partition free. A live GitHub REST check on the development PC confirmed subscribers_count, a pagination Link header with rel="last" and page=48, latest commit timestamp inputs, and commit detail files[].filename. The GitHub API check was read-only.
+- Hardware: no flash performed; no physical feature test yet. COM21/COM22 were not accessed.
+- Git: changes are local and not yet committed or pushed at the time of this handoff update.
+- Outstanding: verify the Cloudflare upload/download endpoints and reported throughput on the D1; verify explicit disconnect remains disconnected and Wi-Fi Manager reconnect works; physically verify all new GitHub metrics and filename-only list. The speed test is an estimate of throughput to Cloudflare's test endpoint, not a guaranteed ISP line-rate certification.
+- Next action: review the final diff, commit and push the feature changes, then ask the user to authorize/perform a COM21 firmware flash and physical regression tests.

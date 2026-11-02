@@ -179,3 +179,14 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Returning Home and reopening Web Reader also behaved correctly.
 - Result: PASS (user-confirmed physical test). No source-code change, build, or flash was required.
 - Next physical test: repeat entry/exit across all five modules and verify touch responsiveness, followed by automatic-refresh timing and prolonged operation.
+
+
+## Network Monitor and GitHub Monitor feature expansion (2026-11-02)
+
+- Network Monitor now includes a user-triggered Cloudflare download/upload speed test. The test transfers a fixed 500,000-byte download and 200,000-byte upload, uses HTTPS certificate verification, a 20-second timeout per request, and a worker task so LVGL remains responsive. Results are estimates to Cloudflare's speed-test endpoint.
+- Added an explicit Wi-Fi disconnect control. The Wi-Fi model suppresses its normal reconnect behavior after a user-requested disconnect; selecting a network through the existing Wi-Fi Manager clears the suppression and reconnects.
+- GitHub Monitor now displays stars, forks, watching/subscriber count, open issues, total repository commits, latest commit age, and filenames changed in the latest commit. It never displays file contents. Commit totals use the GitHub commits endpoint Link pagination header; latest commit age uses the committer's UTC timestamp.
+- The existing latest Actions workflow status and manual Refresh remain. Removed the OPEN IN WEB action.
+- Added main/tech/tech_speed_test.c and main/tech/tech_speed_test.h; extended tech_http_response_t to retain the HTTP Link header for GitHub pagination.
+- Validation: git diff --check passed; ESP-IDF 5.4.4 build passed on 2026-11-02. Firmware image size is 0x223CA0 bytes, leaving 47% of the 4 MiB app partition free. A read-only development-PC GitHub REST check confirmed the repository response fields, pagination Link header (rel="last"), latest commit timestamp, and commit file-name response.
+- Hardware status: no firmware flash and no physical test performed for these new features. COM21 and COM22 were not accessed. Physical tests remain required for speed-test behavior, Wi-Fi disconnect/reconnect behavior, and the new GitHub display.

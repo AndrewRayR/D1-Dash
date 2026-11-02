@@ -9,6 +9,7 @@
 typedef struct {
     int status_code;
     size_t body_length;
+    char link_header[512];
     char body[TECH_HTTP_MAX_BODY + 1];
 } tech_http_response_t;
 
