@@ -240,3 +240,10 @@ Never delete older handoff entries; append new entries so the project retains a 
 - Validation: ESP-IDF 5.4.4 idf.py build passed; app image 0x223D60 bytes with 47% of the 4 MiB app partition free. git diff --check passed.
 - Hardware: this fix has not been flashed or physically tested. COM21 must be re-identified as the ESP32-S3 before any flash; COM22 remains untouched.
 - Next: commit/push the source fix, obtain user authorization to flash the verified COM21 port, then test recovery reconnect. If it still fails, the new serial reason code will distinguish authentication, AP-not-found, and other station failures.
+
+### 2026-11-02 - Recovery reconnect suppression fix flashed
+- User authorized flashing; COM21 was re-identified as USB-SERIAL CH340 (VID 1A86, PID 7523), and esptool confirmed ESP32-S3 rev v0.2, MAC 74:4d:bd:95:b0:28. COM22 was identified as a separate USB Serial Device (VID 2E8A, PID 000A) and was not accessed.
+- Flashed commit caa8c40 to COM21. Bootloader, application, and partition-table writes all passed SHA hash verification; hard reset completed.
+- Serial boot confirmed app version caa8c40, ESP-IDF 5.4.4, SenseCAP Indicator detection, and 8 MB PSRAM memory test OK.
+- On boot, station successfully authenticated and associated with the saved network (WPA3-SAE, channel 11, RSSI -21 dBm). However, no IP_EVENT_STA_GOT_IP / "got ip" log appeared during the monitor window, and the existing connectivity check reported 0 packets transmitted. Thus Wi-Fi association is confirmed, but DHCP/IP connectivity is not yet confirmed; do not mark recovery reconnect fully verified.
+- Next: user checks the Indicator's displayed Wi-Fi state and whether normal online features work. If still offline, investigate DHCP/IP event and connectivity-check path; the station association itself is now succeeding.

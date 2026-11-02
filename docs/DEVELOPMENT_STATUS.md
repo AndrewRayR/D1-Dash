@@ -220,3 +220,9 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Identified a state interaction with Network Monitor's explicit Disconnect feature: its s_user_disconnect suppression flag remained set when the recovery portal initiated a new explicit connection attempt. Updated the recovery submission path to clear that flag before attempting association.
 - Added safe station-disconnect diagnostics (ESP-IDF reason code and reconnect state only; no password logging).
 - ESP-IDF 5.4.4 build passed; binary size 0x223D60 bytes, 47% of the 4 MiB app partition remains. Physical verification is pending; this source change has not been flashed.
+
+## Recovery reconnect fix flash and boot check (2026-11-02)
+- Flashed commit caa8c40 to COM21 after re-identifying it as the USB-SERIAL CH340 / ESP32-S3 rev v0.2 (MAC 74:4d:bd:95:b0:28). COM22 was not accessed.
+- Bootloader, app, and partition-table SHA verification passed; hard reset completed.
+- Serial boot confirmed app version caa8c40, ESP-IDF 5.4.4, SenseCAP Indicator detection, and PSRAM memory test OK.
+- The station authenticated and associated with the saved WPA3-SAE network on channel 11 (RSSI -21 dBm). No IP_EVENT_STA_GOT_IP / "got ip" event appeared in the monitor window, and connectivity checks sent 0 packets. Association is verified; DHCP/IP connectivity remains unverified and may be the remaining reason the device appears offline.
