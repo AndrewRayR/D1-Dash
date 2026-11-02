@@ -200,3 +200,10 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Firmware app version: 47d0c8c (feature code commit c827c35); image size 0x223CA0 bytes, leaving 47% of the 4 MiB app partition free.
 - Serial boot log confirmed SenseCAP_Indicator detection, 8 MB PSRAM memory test OK, Wi-Fi association, DHCP address 192.168.0.85, 8.8.8.8 ping 4/4, city lookup success, and NTP synchronization. No immediate crash or stack overflow was observed.
 - Flash and boot are agent-verified. New touchscreen feature behavior is not yet physically verified; speed test, disconnect/reconnect, GitHub metrics, changed-filename list, and removed Open In Web control all require user testing.
+## Network Monitor / Wi-Fi recovery follow-up (2026-11-02)
+
+- User tested the expanded Network Monitor firmware: speed test completed but the display showed literal f characters instead of values; Wi-Fi disconnect worked, but a subsequent connection attempt failed and Recovery Mode displayed an SSID that the phone could not see.
+- Fixed speed result rendering by converting calculated Mbps to hundredths and using integer format specifiers supported by LVGL's compact label formatter.
+- Changed recovery AP startup to explicitly stop the station driver, configure AP mode and credentials, restart the Wi-Fi radio, and then start the captive portal. Startup failure now attempts to restore station mode.
+- ESP-IDF 5.4.4 build passed; image size 0x223D20 bytes, 47% app partition free. git diff --check passed.
+- These fixes have not been flashed or physically tested yet. Recovery AP visibility and reconnection remain pending. COM22 remains untouched.

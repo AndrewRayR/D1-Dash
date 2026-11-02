@@ -138,6 +138,14 @@ Never delete older handoff entries; append new entries so the project retains a 
 
 ## 9. Handoff log
 
+### 2026-11-02 — Network Monitor speed display and recovery AP fix
+- User-reported regression on the expanded Network Monitor firmware: speed test reached completion but displayed literal f characters (Down f Mbps Up f Mbps); the Wi-Fi Disconnect action worked, but reconnecting failed and entered Recovery Mode while the temporary SSID was not visible to the phone.
+- Root cause of speed display: LVGL's compact lv_label_set_text_fmt formatter does not support floating-point conversions. Updated main/tech_terminal_ui.c to round Mbps to hundredths and render integer fields.
+- Recovery AP investigation found the existing code switched the running Wi-Fi driver directly from STA to AP without an explicit stop/start cycle. Updated main/model/indicator_wifi.c to stop the driver, set AP mode/configuration, start the AP radio, and then start the recovery portal; failure cleanup restores STA mode.
+- ESP-IDF 5.4.4 idf.py build: PASS. App image 0x223D20 bytes; 47% of the 4 MiB app partition remains. git diff --check: PASS.
+- Hardware: no flash performed for these fixes. Physical AP visibility and speed display remain unverified until the user authorizes and tests the updated firmware. COM22 remains untouched.
+- Next: flash only after re-identifying COM21 as the Indicator ESP32-S3, then test numeric speed output and recovery SSID visibility / reconnect.
+
 ### 2026-11-02 â€” COM21 reconnected, firmware flashed, and boot verified
 - COM21 reappeared as `USB-SERIAL CH340`; COM22 remained a separate `USB Serial Device` and was not used.
 - esptool read-only identification confirmed ESP32-S3 revision v0.2, MAC `74:4d:bd:95:b0:28`, Wi-Fi/BLE, and 8 MB embedded PSRAM.

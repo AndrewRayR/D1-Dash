@@ -507,9 +507,16 @@ static void speed_result_event(void *handler_args, esp_event_base_t base,
     lv_port_sem_take();
     if (network_page != NULL && active_page == network_page && network_speed != NULL) {
         if (result->ok) {
-            lv_label_set_text_fmt(network_speed, "Cloudflare  /  Down %.2f Mbps   Up %.2f Mbps",
-                                  result->speed.download_mbps,
-                                  result->speed.upload_mbps);
+            /* LVGL's compact formatter does not support floating-point printf.
+             * Convert to hundredths and render with integer format specifiers. */
+            unsigned int down_hundredths =
+                (unsigned int)(result->speed.download_mbps * 100.0f + 0.5f);
+            unsigned int up_hundredths =
+                (unsigned int)(result->speed.upload_mbps * 100.0f + 0.5f);
+            lv_label_set_text_fmt(network_speed,
+                                  "Cloudflare  /  Down %u.%02u Mbps   Up %u.%02u Mbps",
+                                  down_hundredths / 100, down_hundredths % 100,
+                                  up_hundredths / 100, up_hundredths % 100);
         } else {
             lv_label_set_text(network_speed, result->message);
         }

@@ -79,12 +79,20 @@ static void __wifi_recovery_start(void)
     ap_config.ap.pmf_cfg.capable = true;
     ap_config.ap.pmf_cfg.required = false;
 
-    esp_err_t err = esp_wifi_set_mode(WIFI_MODE_AP);
+    /* Reconfigure the already-running station radio as a clean AP. A mode
+     * switch alone can leave the AP beacon inactive on some driver states. */
+    esp_err_t err = esp_wifi_stop();
+    if (err == ESP_ERR_WIFI_NOT_STARTED) err = ESP_OK;
+    if (err == ESP_OK) err = esp_wifi_set_mode(WIFI_MODE_AP);
     if (err == ESP_OK) err = esp_wifi_set_config(WIFI_IF_AP, &ap_config);
+    if (err == ESP_OK) err = esp_wifi_start();
     if (err == ESP_OK) err = tech_recovery_portal_start(access_code, true, true);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Could not start recovery network/portal: %s", esp_err_to_name(err));
+        tech_recovery_portal_stop();
+        esp_wifi_stop();
         esp_wifi_set_mode(WIFI_MODE_STA);
+        esp_wifi_start();
         return;
     }
 
