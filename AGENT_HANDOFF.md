@@ -163,3 +163,10 @@ Never delete older handoff entries; append new entries so the project retains a 
 - No firmware build or flash was performed as part of this documentation task.
 - The existing portal stack-size modification was intentionally left untouched and unstaged.
 - Next agent: continue the final physical reliability pass, beginning with the normal-network phone portal regression test when COM21/ESP32-S3 is available.
+
+### 2026-11-02 — Normal-network phone save regression passed
+- User confirmed the newly flashed COM21 firmware booted to the normal D1-Dash home screen.
+- User then completed the normal-network PHONE SETUP regression: authenticated from a phone on the same Wi-Fi, saved a settings-only change, and confirmed the Indicator remained usable/responded afterward.
+- This is a user-confirmed physical test; the assistant did not independently operate the touchscreen or phone.
+- No source-code changes were required. COM22 remains untouched.
+- Next action: physically verify GitHub Monitor's repository metrics and latest Actions workflow/no-runs display, then continue F1 offline cache, Web Reader edge cases, repeated navigation, refresh timing, and recovery portal tests.

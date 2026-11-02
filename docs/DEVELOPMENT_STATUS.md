@@ -50,7 +50,7 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 
 ## Next actions
 
-1. Perform the normal-network phone portal save test on the newly flashed physical D1; the user has already reported the latest issue fixed, so this is a regression check rather than a request to repeat a known failure.
+1. [x] Normal-network phone portal save regression passed on the newly flashed physical D1 (user-confirmed 2026-11-02).
 2. Run the remaining module reliability checks: GitHub workflow/no-runs and rate-limit states, F1 offline-cache fallback, Web Reader redirects/HTTP errors/long pages, and repeated module entry/exit.
 3. Verify automatic refresh timing and prolonged operation, then record the tested firmware build and release version.
 4. Separately test recovery AP/captive-portal behavior on Android/iOS; do not conflate it with the normal-network portal.
@@ -106,7 +106,7 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 
 - Audited the current home-screen module dispatch, settings schema, HTTP service, and feature implementations against the roadmap. The five current core modules are Web Reader, Network Monitor/Wi-Fi Manager, Raspberry Pi Monitor, GitHub Monitor, and F1. The Information feed is not implemented and is now tracked as an optional future module rather than being described as complete.
 - Found that `refresh_seconds` was persisted and displayed in Settings but was not consumed by module scheduling. Added LVGL timers for Network Monitor, Raspberry Pi Monitor, GitHub, and F1. Timers perform work only while their corresponding module is active; returning Home pauses module refresh activity. Saving a new interval updates existing timers.
-- Network and Raspberry Pi checks use the selected 1–60 minute interval. GitHub and OpenF1 use a five-minute minimum to avoid overly frequent public API requests. The Web Reader remains user-triggered.
+- Network and Raspberry Pi checks use the selected 1â€“60 minute interval. GitHub and OpenF1 use a five-minute minimum to avoid overly frequent public API requests. The Web Reader remains user-triggered.
 - Updated home-screen descriptions to match current capabilities and rewrote `docs/ROADMAP.md` to distinguish implemented features, remaining physical checks, and future enhancements.
 - Reviewed HTTP service bounds: 10-second timeout, 32 KiB maximum response body, certificate-bundle TLS verification, and a maximum of three redirects.
 - Initial ESP-IDF 5.4.4 build after the timer integration passed; app image was approximately 0x21A570 bytes with 47% of the 4 MiB app partition free. A final build is being run after the documentation/UI-label updates.
@@ -152,3 +152,9 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Firmware flashed to verified COM21 only; esptool hash verification passed. Boot logs confirmed SenseCAP_Indicator detection, 8 MB PSRAM memory test, and successful association/DHCP at 192.168.0.85. No startup crash appeared in the captured log.
 - The user subsequently reported successful access to the normal-network phone portal and confirmed that the settings-save/display issue they were investigating is fixed. Treat this as user-confirmed physical behavior; it was not independently reproduced during the 2026-11-02 desktop build review.
 - Recovery AP/captive-popup testing remains separate and has not been physically triggered; Android/iOS automatic portal behavior, wrong-password retry, and recovery-mode Wi-Fi changes remain unverified.
+
+## Normal-network phone save regression (2026-11-02)
+- User confirmed the newly flashed firmware booted to the D1-Dash home screen.
+- User completed the normal-network PHONE SETUP regression from a phone on the same Wi-Fi: authenticated, saved a settings-only change, and confirmed the Indicator remained usable and responsive afterward.
+- Result: PASS (user-confirmed physical test). No code changes were needed; COM22 was not touched.
+- Remaining physical checks: GitHub workflow/no-runs and rate-limit states; F1 offline cache; Web Reader redirects, HTTP errors and long pages; repeated module navigation; automatic refresh timing/soak; recovery AP/captive portal behavior.
