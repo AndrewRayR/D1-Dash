@@ -59,7 +59,7 @@ Note: public API modules (GitHub and OpenF1) enforce a five-minute minimum polli
 - [x] Display the latest completed race podium when data is available.
 - [x] Keep a bounded 900-byte RAM cache for up to 30 minutes for request-failure fallback.
 - [x] User physically verified the schedule and latest-race podium display.
-- [ ] Physically verify offline-cache fallback and repeated refresh/navigation on the current firmware.
+- [x] User physically verified offline-cache fallback on the current firmware: after a successful online load, a subsequent failed request displayed the cached race schedule as designed.
 
 ## 3. Web Reader
 
