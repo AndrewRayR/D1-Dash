@@ -1,6 +1,6 @@
 # Development Status
 
-Last updated: 2026-10-29
+Last updated: 2026-11-02
 
 ## Recovery context
 
@@ -39,11 +39,20 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Latest firmware binary size: `0x219000` bytes; app partition is `0x400000` bytes with 48% free. The GitHub workflow-enabled firmware was flashed successfully to verified COM21; esptool verified image hashes and hard-reset the board. The new GitHub workflow view and F1 offline-cache behavior still need physical verification. COM22 remains untouched.
 - The two renamed Wi-Fi config options were updated in `sdkconfig.defaults`; reconfigure/build completed without the previous migration warnings.
 
+## Current verification (2026-11-02)
+
+- Reinitialized the documented ESP-IDF 5.4.4 environment from `C:\Espressif\frameworks\esp-idf-v5.4.4` using Python 3.13.2.
+- `idf.py build` completed successfully for `esp32s3` after compiling all 1,337 Ninja steps, including `main/tech/tech_recovery_portal.c` with the 12 KiB HTTP server task stack.
+- Firmware image: `build/indicator_basis.bin`, size `0x222AF0` bytes; the 4 MiB app partition has 47% free.
+- `git diff --check` passed before the build. The build did not flash the device.
+- Only COM22 was enumerated during this review (`USB Serial Device`, VID `2E8A`, PID `000A`); COM21 was not present. Per the hardware handoff, COM22 was not flashed.
+
 ## Next actions
 
-1. Confirm the other modules and settings/navigation by touch.
-2. Physically verify GitHub latest workflow status and the F1 offline-cache fallback.
-3. Continue reliability work and the remaining modules.
+1. Perform the normal-network phone portal save test on the physical D1 when its ESP32-S3 serial connection is available; the user has already reported the latest issue fixed, so this is a regression check rather than a request to repeat a known failure.
+2. Run the remaining module reliability checks: GitHub workflow/no-runs and rate-limit states, F1 offline-cache fallback, Web Reader redirects/HTTP errors/long pages, and repeated module entry/exit.
+3. Verify automatic refresh timing and prolonged operation, then record the tested firmware build and release version.
+4. Separately test recovery AP/captive-portal behavior on Android/iOS; do not conflate it with the normal-network portal.
 
 
 ## GitHub Monitor crash investigation (2026-10-28)
@@ -140,4 +149,5 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - The existing recovery mode remains unchanged in purpose: it starts a unique WPA2 setup network after first boot without credentials or after station connection retries are exhausted, displays its password and login code, and runs captive DNS to `192.168.4.1`.
 - ESP-IDF 5.4.4 build passed; binary size 0x222380 bytes, with 47% of the 4 MiB app partition remaining.
 - Firmware flashed to verified COM21 only; esptool hash verification passed. Boot logs confirmed SenseCAP_Indicator detection, 8 MB PSRAM memory test, and successful association/DHCP at 192.168.0.85. No startup crash appeared in the captured log.
-- Physical verification remains pending: tap PHONE SETUP, browse to the displayed IP from a phone on the same Wi-Fi, sign in, save a settings-only change, then close the portal. Recovery AP/captive-popup testing is separate and has not been physically triggered.
+- The user subsequently reported successful access to the normal-network phone portal and confirmed that the settings-save/display issue they were investigating is fixed. Treat this as user-confirmed physical behavior; it was not independently reproduced during the 2026-11-02 desktop build review.
+- Recovery AP/captive-popup testing remains separate and has not been physically triggered; Android/iOS automatic portal behavior, wrong-password retry, and recovery-mode Wi-Fi changes remain unverified.

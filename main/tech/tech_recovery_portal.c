@@ -425,7 +425,9 @@ esp_err_t tech_recovery_portal_start(const char *pair_code,
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
     config.max_uri_handlers = 8;
-    config.stack_size = 6144;
+    /* Form handlers keep parsed settings and request data on the task stack.
+     * 6 KiB overflowed during the authenticated phone save request. */
+    config.stack_size = 12288;
     config.uri_match_fn = httpd_uri_match_wildcard;
     esp_err_t err = httpd_start(&s_server, &config);
     if (err != ESP_OK) return err;

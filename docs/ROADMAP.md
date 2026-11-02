@@ -1,6 +1,6 @@
 # D1-Dash Roadmap
 
-Last reviewed: 2026-10-29
+Last reviewed: 2026-11-02
 
 This roadmap separates features already implemented from checks that still require the physical device. The five home-screen modules are the current core product; optional feeds and alternate input/configuration methods are future expansions.
 
@@ -99,7 +99,8 @@ The first implementation is a D1-hosted recovery portal. It does not depend on t
 - [ ] Physically verify captive-portal auto-open behavior on Android and iOS, manual URL access, wrong-password retry, and successful Wi-Fi recovery.
 - [x] Add an optional authenticated configuration page reachable over the normal home Wi-Fi network, started from the home-screen PHONE SETUP button; it displays the D1's current LAN address and a six-digit login code.
 - [x] Reuse the recovery portal form on the normal network, allowing settings-only saves without forcing a Wi-Fi reconnect; Wi-Fi credentials are optional in this mode.
-- [ ] Physically verify phone login and settings-only saves over the normal home Wi-Fi network, then verify recovery captive-portal behavior separately.
+- [x] User physically verified access to the normal-network phone portal and reported that the settings-save/display issue is fixed.
+- [ ] Verify recovery captive-portal behavior separately, including Android/iOS auto-open, manual URL access, wrong-password retry, and recovery-mode Wi-Fi changes.
 
 ### BLE keyboard
 - [ ] Add BLE HID host support so a standard Bluetooth LE keyboard can be paired.
