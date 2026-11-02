@@ -202,6 +202,6 @@ Never delete older handoff entries; append new entries so the project retains a 
 - Extended the shared HTTP response to capture the Link response header. New speed-test service is in main/tech/tech_speed_test.c and main/tech/tech_speed_test.h.
 - Validation: git diff --check passed. ESP-IDF 5.4.4 build passed; generated build/indicator_basis.bin size 0x223CA0, leaving 47% of the 4 MiB app partition free. A live GitHub REST check on the development PC confirmed subscribers_count, a pagination Link header with rel="last" and page=48, latest commit timestamp inputs, and commit detail files[].filename. The GitHub API check was read-only.
 - Hardware: no flash performed; no physical feature test yet. COM21/COM22 were not accessed.
-- Git: changes are local and not yet committed or pushed at the time of this handoff update.
+- Git: commit c827c35 (feat: expand network and GitHub monitors) was committed on main and pushed successfully to origin/main.
 - Outstanding: verify the Cloudflare upload/download endpoints and reported throughput on the D1; verify explicit disconnect remains disconnected and Wi-Fi Manager reconnect works; physically verify all new GitHub metrics and filename-only list. The speed test is an estimate of throughput to Cloudflare's test endpoint, not a guaranteed ISP line-rate certification.
-- Next action: review the final diff, commit and push the feature changes, then ask the user to authorize/perform a COM21 firmware flash and physical regression tests.
+- Next action: ask the user to authorize a COM21 firmware flash, then run physical regression tests for the new Network Monitor and GitHub Monitor features.
