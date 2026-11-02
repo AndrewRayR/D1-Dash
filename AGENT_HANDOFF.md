@@ -25,18 +25,15 @@ Core design requirements:
 
 The following was checked on `DESKTOP-415LS7I`:
 
-- `HEAD`: `673fcb8` — `fix(config): keep display awake after phone save`.
-- `main` and `origin/main` pointed to the same commit at inspection.
-- Recent history includes the phone configuration portal, sign-in/header fixes, invalid-PIN feedback, and display-awake-after-save fix.
-- The working tree is **not clean**. There is one pre-existing modification:
-  - `main/tech/tech_recovery_portal.c`
-  - Diff increases `httpd_config_t.stack_size` from 6144 to 12288 bytes and adds a comment explaining that authenticated phone-save form handling overflowed the 6 KiB server task stack.
-  - This change is **uncommitted** and must be preserved. Do not reset, overwrite, stage, or commit it unless its owner/user explicitly authorizes that.
-- Do not assume the current uncommitted change has been pushed. Verify before making any claims about its delivery.
+- Latest implementation commit: `98d9987` — `fix(config): increase phone portal server stack`.
+- `main` and `origin/main` are synchronized; the implementation commit is pushed.
+- The phone portal HTTP server stack increase from 6,144 to 12,288 bytes is committed in `98d9987`, together with current status/roadmap updates. The handoff log below records this session's documentation update.
+- The working tree was clean after the push. Re-check Git status before making changes.
+- The current ESP-IDF 5.4.4 build passed on 2026-11-02; details are recorded in `docs/DEVELOPMENT_STATUS.md`.
 
 **User-reported hardware status:** The user has explicitly confirmed that the issue they were following up on is now fixed. In the phone-configuration context, the recent code and local change concern the display/save path and the HTTP server task stack. Treat the user's confirmation as a physical-use report, but do not claim that you personally reproduced or tested it.
 
-**Important:** The detailed `docs/DEVELOPMENT_STATUS.md` and `docs/ROADMAP.md` were last updated 2026-10-29 and contain older pending-test notes. They are useful history, not a fully current status snapshot. Reconcile them with current code and the user's latest confirmation before changing their checkboxes.
+**Documentation status:** `docs/DEVELOPMENT_STATUS.md` and `docs/ROADMAP.md` were reconciled on 2026-11-02. They distinguish user-confirmed normal-network phone portal behavior from hardware tests still pending, especially recovery captive-portal testing and final module reliability checks.
 
 ## 3. Hardware and development environment
 
@@ -49,7 +46,7 @@ The following was checked on `DESKTOP-415LS7I`:
 - ESP-IDF path previously verified: `C:\Espressif\frameworks\esp-idf-v5.4.4`.
 - ESP32-S3 Python/toolchain environment previously found under `C:\Users\andre\.espressif`.
 - **COM21** was positively identified as the Indicator D1 ESP32-S3 and used for prior verified flashes.
-- **COM22** enumerated separately and was deliberately not flashed. Always re-identify ports before flashing; never assume port assignments persist.
+- **COM22** enumerated separately and was deliberately not flashed. During the 2026-11-02 review, only COM22 appeared (`USB Serial Device`, VID `2E8A`, PID `000A`); COM21 was absent. No flash was attempted. Always re-identify ports before flashing; never assume port assignments persist.
 - Previous hardware logs confirmed SenseCAP_Indicator detection, 8 MB PSRAM initialization, Wi-Fi association, DHCP, internet connectivity, and NTP synchronization.
 
 ## 4. Implemented product areas
@@ -72,12 +69,12 @@ An authenticated phone configuration service is implemented:
 
 ## 5. Current next actions
 
-1. **Protect and resolve the pre-existing working-tree change.** Inspect the exact diff in `main/tech/tech_recovery_portal.c`, confirm with the user/active task owner whether it is intended to be retained, then build and test it. Do not silently stage or commit it.
-2. Verify the current phone-save fix on the physical device if any part of that path remains untested. The user has already said the issue is fixed; avoid asking them to repeat a successful test without a reason.
-3. Reconcile `docs/DEVELOPMENT_STATUS.md` and `docs/ROADMAP.md` with the current source and the user's latest physical confirmations. Do not mark unrelated old checks complete just because the phone-save issue is fixed.
-4. Continue the final reliability pass: repeated module entry/exit, touch responsiveness, refresh behavior, network failure handling, and prolonged operation.
-5. Check the remaining roadmap items, especially BLE HID keyboard feasibility/implementation, USB keyboard-dongle feasibility via the RP2040 path, and optional Information feeds. Do not implement optional expansions without prioritization.
-6. For each code change, run `git diff --check` and an ESP-IDF 5.4.4 build when the environment is available. Flash only when necessary and after confirming the correct serial port.
+1. When the Indicator's ESP32-S3 serial interface is available again, perform a regression check of the normal-network phone portal: sign in, save a settings-only change, confirm the display stays responsive, and close phone access. The user has already reported the latest issue fixed.
+2. Complete the physical reliability pass: GitHub workflow/no-runs and rate-limit states, F1 offline-cache fallback, Web Reader redirects/HTTP errors/long pages, repeated module entry/exit, and touch responsiveness.
+3. Verify automatic refresh timing and prolonged operation; record the tested firmware build and release version.
+4. Separately test recovery AP/captive-portal behavior on Android/iOS, including manual URL, wrong-password retry, and Wi-Fi recovery. This remains distinct from normal-network configuration.
+5. Revisit BLE HID and USB keyboard-dongle feasibility only after the core reliability pass; do not implement optional expansions without prioritization.
+6. For each code change, run `git diff --check` and an ESP-IDF 5.4.4 build. Flash only when necessary and after positively identifying the ESP32-S3 port.
 
 ## 6. Build and test quick reference
 
@@ -142,10 +139,20 @@ Never delete older handoff entries; append new entries so the project retains a 
 
 ## 9. Handoff log
 
+### 2026-11-02 — Portal stack verification and documentation refresh
+- Reviewed the pre-existing `main/tech/tech_recovery_portal.c` change: HTTP server task stack increased from 6,144 to 12,288 bytes to accommodate authenticated form parsing and settings-save handling.
+- Reinitialized ESP-IDF 5.4.4 from `C:\Espressif\frameworks\esp-idf-v5.4.4` (Python 3.13.2) and ran `idf.py build`; all 1,337 Ninja steps completed successfully.
+- Generated `build/indicator_basis.bin` at `0x222AF0` bytes; 47% of the 4 MiB app partition remains. `git diff --check` passed.
+- Updated `docs/DEVELOPMENT_STATUS.md` and `docs/ROADMAP.md` with the build result and the user's reported phone-save fix. Recovery captive-portal and other module tests remain pending.
+- Hardware: no flash performed. Only COM22 (`USB Serial Device`, VID `2E8A`, PID `000A`) was enumerated; COM21 was absent, so COM22 was left untouched.
+- Commit `98d9987` (`fix(config): increase phone portal server stack`) contains the portal stack change and status/roadmap updates; pushed to `origin/main`.
+- Working tree was clean after push. No physical regression test was possible during this session.
+- Next agent: continue the final physical reliability pass, beginning with the normal-network phone portal regression test when COM21/ESP32-S3 is available.
+
 ### 2026-11-02 — Initial shared AI handoff file
 - Added `AGENTS.md` to make the handoff procedure discoverable to repository-aware coding agents.
 - Added this `AGENT_HANDOFF.md` as the shared project-state and transition record.
 - Verified local repository branch/HEAD and inspected the current uncommitted change in `main/tech/tech_recovery_portal.c`.
 - No firmware build or flash was performed as part of this documentation task.
 - The existing portal stack-size modification was intentionally left untouched and unstaged.
-- Next agent: preserve/review the existing portal change, then reconcile the dated development status and continue reliability testing.
+- Next agent: continue the final physical reliability pass, beginning with the normal-network phone portal regression test when COM21/ESP32-S3 is available.
