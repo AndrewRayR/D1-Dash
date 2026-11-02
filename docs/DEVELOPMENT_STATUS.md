@@ -44,12 +44,13 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Reinitialized the documented ESP-IDF 5.4.4 environment from `C:\Espressif\frameworks\esp-idf-v5.4.4` using Python 3.13.2.
 - `idf.py build` completed successfully for `esp32s3` after compiling all 1,337 Ninja steps, including `main/tech/tech_recovery_portal.c` with the 12 KiB HTTP server task stack.
 - Firmware image: `build/indicator_basis.bin`, size `0x222AF0` bytes; the 4 MiB app partition has 47% free.
-- `git diff --check` passed before the build. The build did not flash the device.
-- Only COM22 was enumerated during this review (`USB Serial Device`, VID `2E8A`, PID `000A`); COM21 was not present. Per the hardware handoff, COM22 was not flashed.
+- `git diff --check` passed before the build. After COM21 reappeared, esptool positively identified it as the ESP32-S3 (revision v0.2, MAC `74:4d:bd:95:b0:28`, 8 MB PSRAM). The firmware, bootloader, and partition table were flashed to COM21; all three write hashes verified and the board hard-reset successfully.
+- Serial boot output confirmed app version `73dbb63`, ESP-IDF 5.4.4, SenseCAP_Indicator detection, successful 8 MB PSRAM memory test, LVGL touch input initialization, Wi-Fi internet access (city lookup succeeded), and NTP synchronization. No immediate boot crash or stack overflow appeared in the captured logs.
+- COM22 (`USB Serial Device`, VID `2E8A`, PID `000A`) was not touched. Physical touchscreen navigation and the phone-portal save regression still need user/device interaction testing.
 
 ## Next actions
 
-1. Perform the normal-network phone portal save test on the physical D1 when its ESP32-S3 serial connection is available; the user has already reported the latest issue fixed, so this is a regression check rather than a request to repeat a known failure.
+1. Perform the normal-network phone portal save test on the newly flashed physical D1; the user has already reported the latest issue fixed, so this is a regression check rather than a request to repeat a known failure.
 2. Run the remaining module reliability checks: GitHub workflow/no-runs and rate-limit states, F1 offline-cache fallback, Web Reader redirects/HTTP errors/long pages, and repeated module entry/exit.
 3. Verify automatic refresh timing and prolonged operation, then record the tested firmware build and release version.
 4. Separately test recovery AP/captive-portal behavior on Android/iOS; do not conflate it with the normal-network portal.

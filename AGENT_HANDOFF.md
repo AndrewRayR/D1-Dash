@@ -25,11 +25,10 @@ Core design requirements:
 
 The following was checked on `DESKTOP-415LS7I`:
 
-- Latest implementation commit: `98d9987` — `fix(config): increase phone portal server stack`.
-- `main` and `origin/main` are synchronized; the implementation commit is pushed.
-- The phone portal HTTP server stack increase from 6,144 to 12,288 bytes is committed in `98d9987`, together with current status/roadmap updates. The handoff log below records this session's documentation update.
-- The working tree was clean after the push. Re-check Git status before making changes.
-- The current ESP-IDF 5.4.4 build passed on 2026-11-02; details are recorded in `docs/DEVELOPMENT_STATUS.md`.
+- Last pushed baseline before the current hardware verification: `73dbb63` — `docs(agents): refresh D1-Dash handoff` (includes implementation commit `98d9987`).
+- The phone portal HTTP server stack increase from 6,144 to 12,288 bytes is committed in `98d9987`.
+- ESP-IDF 5.4.4 build, COM21 flash, and serial boot verification passed on 2026-11-02; details are recorded in `docs/DEVELOPMENT_STATUS.md` and the handoff log below.
+- Re-check Git status and remote synchronization before making changes.
 
 **User-reported hardware status:** The user has explicitly confirmed that the issue they were following up on is now fixed. In the phone-configuration context, the recent code and local change concern the display/save path and the HTTP server task stack. Treat the user's confirmation as a physical-use report, but do not claim that you personally reproduced or tested it.
 
@@ -45,8 +44,8 @@ The following was checked on `DESKTOP-415LS7I`:
 - Project directory: `C:\Projects\AndrewRayR\D1-Dash`.
 - ESP-IDF path previously verified: `C:\Espressif\frameworks\esp-idf-v5.4.4`.
 - ESP32-S3 Python/toolchain environment previously found under `C:\Users\andre\.espressif`.
-- **COM21** was positively identified as the Indicator D1 ESP32-S3 and used for prior verified flashes.
-- **COM22** enumerated separately and was deliberately not flashed. During the 2026-11-02 review, only COM22 appeared (`USB Serial Device`, VID `2E8A`, PID `000A`); COM21 was absent. No flash was attempted. Always re-identify ports before flashing; never assume port assignments persist.
+- **COM21** was re-identified on 2026-11-02 as `USB-SERIAL CH340` and positively queried with esptool as the Indicator D1 ESP32-S3 (revision v0.2, MAC `74:4d:bd:95:b0:28`, 8 MB PSRAM). Firmware was successfully flashed to COM21 with all image hashes verified; boot logs confirmed SenseCAP_Indicator, PSRAM test, LVGL touch input, internet access, and NTP sync.
+- **COM22** (`USB Serial Device`, VID `2E8A`, PID `000A`) remains separate and was not flashed. Always re-identify ports before flashing; never assume port assignments persist.
 - Previous hardware logs confirmed SenseCAP_Indicator detection, 8 MB PSRAM initialization, Wi-Fi association, DHCP, internet connectivity, and NTP synchronization.
 
 ## 4. Implemented product areas
@@ -69,7 +68,7 @@ An authenticated phone configuration service is implemented:
 
 ## 5. Current next actions
 
-1. When the Indicator's ESP32-S3 serial interface is available again, perform a regression check of the normal-network phone portal: sign in, save a settings-only change, confirm the display stays responsive, and close phone access. The user has already reported the latest issue fixed.
+1. Perform a regression check of the normal-network phone portal on the newly flashed firmware: sign in, save a settings-only change, confirm the display stays responsive, and close phone access. The user has already reported the latest issue fixed.
 2. Complete the physical reliability pass: GitHub workflow/no-runs and rate-limit states, F1 offline-cache fallback, Web Reader redirects/HTTP errors/long pages, repeated module entry/exit, and touch responsiveness.
 3. Verify automatic refresh timing and prolonged operation; record the tested firmware build and release version.
 4. Separately test recovery AP/captive-portal behavior on Android/iOS, including manual URL, wrong-password retry, and Wi-Fi recovery. This remains distinct from normal-network configuration.
@@ -138,6 +137,14 @@ For each handoff, record:
 Never delete older handoff entries; append new entries so the project retains a durable transition history.
 
 ## 9. Handoff log
+
+### 2026-11-02 — COM21 reconnected, firmware flashed, and boot verified
+- COM21 reappeared as `USB-SERIAL CH340`; COM22 remained a separate `USB Serial Device` and was not used.
+- esptool read-only identification confirmed ESP32-S3 revision v0.2, MAC `74:4d:bd:95:b0:28`, Wi-Fi/BLE, and 8 MB embedded PSRAM.
+- Flashed the current ESP-IDF 5.4.4 firmware, bootloader, and partition table to COM21. All write hashes verified; esptool hard-reset the board and returned exit code 0.
+- Serial boot logs confirmed app version `73dbb63`, SenseCAP_Indicator board detection, 8 MB PSRAM initialization and memory test, LVGL touch input initialization, successful city lookup/internet access, and NTP time synchronization. No immediate crash or stack-overflow was observed.
+- No physical touch navigation or phone-portal save test was performed during this remote serial check; those remain the next user/device verification steps.
+- Next agent: ask the user to confirm the display reaches the home screen, then test PHONE SETUP login/save/close and proceed through the remaining module checks.
 
 ### 2026-11-02 — Portal stack verification and documentation refresh
 - Reviewed the pre-existing `main/tech/tech_recovery_portal.c` change: HTTP server task stack increased from 6,144 to 12,288 bytes to accommodate authenticated form parsing and settings-save handling.
