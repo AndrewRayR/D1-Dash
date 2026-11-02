@@ -51,7 +51,7 @@ Note: public API modules (GitHub and OpenF1) enforce a five-minute minimum polli
 - [x] Move HTTPS and JSON work off the LVGL task.
 - [x] Fix the stale-screen lifecycle bug and increase the worker stack after diagnosing black-screen failures.
 - [x] User confirmed the module opens after the crash fix.
-- [ ] Physically verify the current workflow/no-runs and rate-limit states on the device.
+- [x] User physically verified repository information and Actions status, Refresh, Back Home, and reopening GitHub Monitor on the current firmware. Rate-limit/403/429 messaging was not deliberately triggered and remains unverified.
 
 ### Formula 1
 - [x] Fetch race sessions from OpenF1 in a worker task.

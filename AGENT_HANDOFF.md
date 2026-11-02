@@ -25,10 +25,10 @@ Core design requirements:
 
 The following was checked on `DESKTOP-415LS7I`:
 
-- Last pushed baseline before the current hardware verification: `73dbb63` — `docs(agents): refresh D1-Dash handoff` (includes implementation commit `98d9987`).
+- Latest pushed repository state before this documentation update: 1b5e7f2 — docs: record phone portal regression pass; branch main was clean and synchronized with origin/main before recording the GitHub Monitor test.
 - The phone portal HTTP server stack increase from 6,144 to 12,288 bytes is committed in `98d9987`.
 - ESP-IDF 5.4.4 build, COM21 flash, and serial boot verification passed on 2026-11-02; details are recorded in `docs/DEVELOPMENT_STATUS.md` and the handoff log below.
-- Re-check Git status and remote synchronization before making changes.
+- The user has now physically confirmed the GitHub Monitor normal workflow on the current firmware: repository information and Actions status, Refresh, Back Home, and reopening all behaved as designed. Rate-limit/403/429 presentation was not deliberately triggered.
 
 **User-reported hardware status:** The user has explicitly confirmed that the issue they were following up on is now fixed. In the phone-configuration context, the recent code and local change concern the display/save path and the HTTP server task stack. Treat the user's confirmation as a physical-use report, but do not claim that you personally reproduced or tested it.
 
@@ -68,8 +68,8 @@ An authenticated phone configuration service is implemented:
 
 ## 5. Current next actions
 
-1. Perform a regression check of the normal-network phone portal on the newly flashed firmware: sign in, save a settings-only change, confirm the display stays responsive, and close phone access. The user has already reported the latest issue fixed.
-2. Complete the physical reliability pass: GitHub workflow/no-runs and rate-limit states, F1 offline-cache fallback, Web Reader redirects/HTTP errors/long pages, repeated module entry/exit, and touch responsiveness.
+1. Normal-network phone portal regression is complete: the user confirmed sign-in, settings-only save, and continued display responsiveness on the newly flashed firmware.
+2. Continue the physical reliability pass with F1 offline-cache fallback and repeated refresh/navigation, then Web Reader redirects/HTTP errors/long pages, repeated module entry/exit, and touch responsiveness. GitHub normal workflow/refresh/navigation is user-confirmed pass; do not deliberately induce rate limits.
 3. Verify automatic refresh timing and prolonged operation; record the tested firmware build and release version.
 4. Separately test recovery AP/captive-portal behavior on Android/iOS, including manual URL, wrong-password retry, and Wi-Fi recovery. This remains distinct from normal-network configuration.
 5. Revisit BLE HID and USB keyboard-dongle feasibility only after the core reliability pass; do not implement optional expansions without prioritization.
@@ -143,8 +143,8 @@ Never delete older handoff entries; append new entries so the project retains a 
 - esptool read-only identification confirmed ESP32-S3 revision v0.2, MAC `74:4d:bd:95:b0:28`, Wi-Fi/BLE, and 8 MB embedded PSRAM.
 - Flashed the current ESP-IDF 5.4.4 firmware, bootloader, and partition table to COM21. All write hashes verified; esptool hard-reset the board and returned exit code 0.
 - Serial boot logs confirmed app version `73dbb63`, SenseCAP_Indicator board detection, 8 MB PSRAM initialization and memory test, LVGL touch input initialization, successful city lookup/internet access, and NTP time synchronization. No immediate crash or stack-overflow was observed.
-- No physical touch navigation or phone-portal save test was performed during this remote serial check; those remain the next user/device verification steps.
-- Next agent: ask the user to confirm the display reaches the home screen, then test PHONE SETUP login/save/close and proceed through the remaining module checks.
+- The serial check itself did not exercise touch navigation or phone-portal save. Subsequent user-confirmed physical checks passed for the home screen, phone-portal save, and GitHub Monitor workflow/navigation.
+- Next agent: continue with F1 offline-cache fallback, then Web Reader edge cases and full navigation/refresh soak testing.
 
 ### 2026-11-02 — Portal stack verification and documentation refresh
 - Reviewed the pre-existing `main/tech/tech_recovery_portal.c` change: HTTP server task stack increased from 6,144 to 12,288 bytes to accommodate authenticated form parsing and settings-save handling.
@@ -169,4 +169,11 @@ Never delete older handoff entries; append new entries so the project retains a 
 - User then completed the normal-network PHONE SETUP regression: authenticated from a phone on the same Wi-Fi, saved a settings-only change, and confirmed the Indicator remained usable/responded afterward.
 - This is a user-confirmed physical test; the assistant did not independently operate the touchscreen or phone.
 - No source-code changes were required. COM22 remains untouched.
-- Next action: physically verify GitHub Monitor's repository metrics and latest Actions workflow/no-runs display, then continue F1 offline cache, Web Reader edge cases, repeated navigation, refresh timing, and recovery portal tests.
+- Next action: test F1 cached-data fallback after a successful online load, then continue Web Reader edge cases, repeated navigation, refresh timing, and recovery portal tests.
+
+### 2026-11-02 — GitHub Monitor physical regression passed
+- User confirmed the GitHub Monitor behaved as designed on the current firmware: repository information and Actions status appeared, Refresh worked, Back Home returned correctly, and reopening the module worked.
+- Result: PASS (user-confirmed physical test). No source-code change, build, or flash was needed for this verification.
+- The 403/429 rate-limit/access state was not deliberately triggered; avoid generating excessive API requests merely to force this state.
+- COM22 remains untouched. No hardware action was performed during this documentation update.
+- Next action: test F1 cached-data fallback after a successful online load, then continue Web Reader edge cases and full navigation/refresh soak testing.

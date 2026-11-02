@@ -157,4 +157,11 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - User confirmed the newly flashed firmware booted to the D1-Dash home screen.
 - User completed the normal-network PHONE SETUP regression from a phone on the same Wi-Fi: authenticated, saved a settings-only change, and confirmed the Indicator remained usable and responsive afterward.
 - Result: PASS (user-confirmed physical test). No code changes were needed; COM22 was not touched.
-- Remaining physical checks: GitHub workflow/no-runs and rate-limit states; F1 offline cache; Web Reader redirects, HTTP errors and long pages; repeated module navigation; automatic refresh timing/soak; recovery AP/captive portal behavior.
+- Remaining physical checks: F1 offline cache; Web Reader redirects, HTTP errors and long pages; repeated module navigation; automatic refresh timing/soak; recovery AP/captive portal behavior. GitHub 403/429 rate-limit messaging remains unverified and was not deliberately triggered.
+
+## GitHub Monitor physical regression (2026-11-02)
+
+- User confirmed the GitHub Monitor behaved as designed on the current COM21 firmware: repository information and Actions status appeared, Refresh worked, Back Home returned correctly, and reopening the module worked.
+- Result: PASS (user-confirmed physical test). No firmware change or flash was required.
+- The 403/429 rate-limit/access error presentation was not deliberately triggered; it remains unverified.
+- Next physical test: F1 offline-cache fallback and repeated refresh/navigation.
