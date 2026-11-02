@@ -190,3 +190,13 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - Added main/tech/tech_speed_test.c and main/tech/tech_speed_test.h; extended tech_http_response_t to retain the HTTP Link header for GitHub pagination.
 - Validation: git diff --check passed; ESP-IDF 5.4.4 build passed on 2026-11-02. Firmware image size is 0x223CA0 bytes, leaving 47% of the 4 MiB app partition free. A read-only development-PC GitHub REST check confirmed the repository response fields, pagination Link header (rel="last"), latest commit timestamp, and commit file-name response.
 - Hardware status: no firmware flash and no physical test performed for these new features. COM21 and COM22 were not accessed. Physical tests remain required for speed-test behavior, Wi-Fi disconnect/reconnect behavior, and the new GitHub display.
+
+
+## Network/GitHub monitor firmware flash and boot verification (2026-11-02)
+
+- User authorized flashing the updated monitor features. Re-enumerated ports: COM21 was USB-SERIAL CH340 (VID 1A86/PID 7523); COM22 was a separate USB Serial Device (VID 2E8A/PID 000A).
+- Read-only esptool identification confirmed COM21 is the Indicator ESP32-S3, revision v0.2, MAC 74:4d:bd:95:b0:28, with 8 MB PSRAM. COM22 was not accessed.
+- ESP-IDF 5.4.4 idf.py -p COM21 flash completed successfully. Bootloader, application, and partition-table writes all passed hash verification; hard reset succeeded.
+- Firmware app version: 47d0c8c (feature code commit c827c35); image size 0x223CA0 bytes, leaving 47% of the 4 MiB app partition free.
+- Serial boot log confirmed SenseCAP_Indicator detection, 8 MB PSRAM memory test OK, Wi-Fi association, DHCP address 192.168.0.85, 8.8.8.8 ping 4/4, city lookup success, and NTP synchronization. No immediate crash or stack overflow was observed.
+- Flash and boot are agent-verified. New touchscreen feature behavior is not yet physically verified; speed test, disconnect/reconnect, GitHub metrics, changed-filename list, and removed Open In Web control all require user testing.

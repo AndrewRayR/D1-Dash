@@ -205,3 +205,14 @@ Never delete older handoff entries; append new entries so the project retains a 
 - Git: commit c827c35 (feat: expand network and GitHub monitors) was committed on main and pushed successfully to origin/main.
 - Outstanding: verify the Cloudflare upload/download endpoints and reported throughput on the D1; verify explicit disconnect remains disconnected and Wi-Fi Manager reconnect works; physically verify all new GitHub metrics and filename-only list. The speed test is an estimate of throughput to Cloudflare's test endpoint, not a guaranteed ISP line-rate certification.
 - Next action: ask the user to authorize a COM21 firmware flash, then run physical regression tests for the new Network Monitor and GitHub Monitor features.
+
+
+### 2026-11-02 ? Monitor feature firmware flashed and boot verified
+- User authorized flashing the updated Network Monitor/GitHub Monitor firmware.
+- Re-enumerated serial devices: COM21 = USB-SERIAL CH340 (VID 1A86, PID 7523); COM22 = separate USB Serial Device (VID 2E8A, PID 000A).
+- Read-only esptool identification on COM21 confirmed ESP32-S3 revision v0.2, MAC 74:4d:bd:95:b0:28, Wi-Fi/BLE, and 8 MB PSRAM. COM22 was not accessed.
+- Ran ESP-IDF 5.4.4 idf.py -p COM21 flash. Bootloader, application, and partition table were written; all three hashes verified and hard reset completed successfully. Application image size 0x223CA0 bytes; 47% of the 4 MiB app partition remains.
+- Attached serial monitor and observed boot: app version 47d0c8c, ESP-IDF 5.4.4, SenseCAP_Indicator detected, 8 MB PSRAM memory test passed, Wi-Fi associated to saved network, DHCP address 192.168.0.85, ping 8.8.8.8 succeeded (4/4), city lookup succeeded, and NTP synchronized. No immediate crash or stack overflow was observed.
+- Hardware status: flash and boot are agent-verified. Touchscreen feature behavior remains unverified; the user must exercise the new speed test, disconnect/reconnect, and GitHub metrics controls.
+- Git: source changes remain at c827c35, documentation delivery commit 47d0c8c; a further documentation-only update is pending.
+- Next action: user physically tests the new Network Monitor and GitHub Monitor features.

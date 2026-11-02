@@ -9,6 +9,7 @@ This roadmap separates features already implemented from checks that still requi
 - [x] Recover the SenseCAP Indicator D1 project baseline and document the ESP32-S3/RP2040 architecture.
 - [x] Build with ESP-IDF 5.4.4 for ESP32-S3.
 - [x] Verify the Indicator D1 on COM21 (8 MB flash and 8 MB PSRAM); COM22 is not used.
+- [x] Flash the Network/GitHub monitor feature build to positively identified COM21 and verify image hashes and serial boot (2026-11-02).
 - [x] Initialize the display, touch input, Wi-Fi, and persistent settings.
 - [x] Resolve touch coordinate inversion and the LVGL screen-lifecycle issues found during testing.
 - [x] Provide a consistent Home action on the implemented modules.
