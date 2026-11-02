@@ -213,3 +213,10 @@ The current repository checkout includes a BSP wrapper named tca9535_read_input_
 - ESP-IDF 5.4.4 flash completed on COM21; bootloader, app, and partition-table hashes verified; hard reset succeeded.
 - Serial boot confirmed app version 7d551d5, SenseCAP Indicator detection, and PSRAM memory test OK. Saved station credentials did not authenticate, but the updated firmware then switched to softAP, initialized beacons, started the recovery portal with captive DNS, and started DHCP at 192.168.4.1.
 - Recovery SSID reported in serial log: D1-Dash-Setup-48D3. Phone visibility and portal access still require user confirmation. Speed display has not yet been retested on the touchscreen.
+
+## Recovery Wi-Fi reconnect follow-up (2026-11-02)
+- User reported that submitting credentials through the recovery portal returns “Settings saved” but leaves the Indicator on the Wi-Fi Recovery screen.
+- The portal's “Settings saved” response means the form/settings were accepted; it does not wait for Wi-Fi association or DHCP.
+- Identified a state interaction with Network Monitor's explicit Disconnect feature: its s_user_disconnect suppression flag remained set when the recovery portal initiated a new explicit connection attempt. Updated the recovery submission path to clear that flag before attempting association.
+- Added safe station-disconnect diagnostics (ESP-IDF reason code and reconnect state only; no password logging).
+- ESP-IDF 5.4.4 build passed; binary size 0x223D60 bytes, 47% of the 4 MiB app partition remains. Physical verification is pending; this source change has not been flashed.

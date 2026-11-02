@@ -232,3 +232,11 @@ Never delete older handoff entries; append new entries so the project retains a 
 - Hardware status: flash and boot are agent-verified. Touchscreen feature behavior remains unverified; the user must exercise the new speed test, disconnect/reconnect, and GitHub metrics controls.
 - Git: source changes remain at c827c35, documentation delivery commit 47d0c8c; a further documentation-only update is pending.
 - Next action: user physically tests the new Network Monitor and GitHub Monitor features.
+
+### 2026-11-02 - Recovery reconnect honors explicit user reconnect
+- User confirmed that after submitting Wi-Fi details through the recovery portal, the Indicator remains on the Wi-Fi Recovery screen.
+- Source inspection found a state bug: the Network Monitor explicit Disconnect action sets s_user_disconnect=true to suppress automatic reconnects, but the recovery-portal credential submission did not clear that flag. A failed station attempt could therefore be treated as another intentional disconnect, bypassing the recovery retry branch.
+- Updated main/model/indicator_wifi.c to clear user-disconnect suppression before starting the explicit recovery reconnect attempt. Added a station-disconnect log containing the ESP-IDF reason code and relevant reconnect state (no credentials are logged).
+- Validation: ESP-IDF 5.4.4 idf.py build passed; app image 0x223D60 bytes with 47% of the 4 MiB app partition free. git diff --check passed.
+- Hardware: this fix has not been flashed or physically tested. COM21 must be re-identified as the ESP32-S3 before any flash; COM22 remains untouched.
+- Next: commit/push the source fix, obtain user authorization to flash the verified COM21 port, then test recovery reconnect. If it still fails, the new serial reason code will distinguish authentication, AP-not-found, and other station failures.

@@ -170,7 +170,9 @@ static void __wifi_event_handler(void* arg, esp_event_base_t event_base,
             break;
         }
         case WIFI_EVENT_STA_DISCONNECTED: {
-            ESP_LOGI(TAG, "wifi event: WIFI_EVENT_STA_DISCONNECTED");
+            wifi_event_sta_disconnected_t *event = (wifi_event_sta_disconnected_t *)event_data;
+            ESP_LOGW(TAG, "Wi-Fi station disconnected (reason=%u, user_disconnect=%d, recovery_connecting=%d)",
+                     event ? event->reason : 0, s_user_disconnect, s_recovery_connecting);
 
             if (s_user_disconnect) {
                 struct view_data_wifi_st st = {0};
@@ -426,6 +428,10 @@ static void __indicator_wifi_task(void *p_arg)
             wifi_config.sta.sae_pwe_h2e = WPA3_SAE_PWE_BOTH;
             wifi_retry_max = 3;
             s_retry_num = 0;
+            /* A prior user-requested disconnect suppresses automatic retries.
+             * Recovery setup is an explicit reconnect request, so clear that
+             * suppression before the STA can report an authentication failure. */
+            s_user_disconnect = false;
             _g_wifi_model.is_cfg = true;
             s_recovery_connecting = true;
             ESP_LOGI(TAG, "Applying Wi-Fi settings received from recovery portal");
